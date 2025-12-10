@@ -77,6 +77,10 @@ class Message(Base):
     )
     type = Column(SQLEnum(MessageType), nullable=False, default=MessageType.TEXT)
     content = Column(Text, nullable=True)
+    original_language = Column(String(10), nullable=True)  # Detected source language
+    translations = Column(
+        Text, nullable=True
+    )  # JSON string of translations {lang: text}
     media_id = Column(
         UUID(as_uuid=True), ForeignKey("media.id", ondelete="SET NULL"), nullable=True
     )

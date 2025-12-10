@@ -72,6 +72,33 @@ class MessageService:
         # Send notification to conversation members
         await notification_service.notify_new_message(db, message)
 
+        # Also broadcast directly via WebSocket (for when Redis is not available)
+        try:
+            from app.websocket.manager import connection_manager
+
+            await connection_manager.broadcast_to_conversation(
+                str(conversation_id),
+                {
+                    "type": "new_message",
+                    "message": {
+                        "id": str(message.id),
+                        "conversation_id": str(conversation_id),
+                        "sender_id": str(sender_id),
+                        "content": content,
+                        "type": message_type.value,
+                        "status": MessageStatus.SENT.value,
+                        "created_at": (
+                            message.created_at.isoformat()
+                            if message.created_at
+                            else None
+                        ),
+                    },
+                },
+            )
+            logger.info(f"Message broadcasted via WebSocket: {message.id}")
+        except Exception as e:
+            logger.error(f"Failed to broadcast message via WebSocket: {e}")
+
         return message
 
     async def get_message(

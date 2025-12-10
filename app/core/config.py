@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     WHATSAPP_BUSINESS_ACCOUNT_ID: str = Field(
         ..., description="WhatsApp business account ID"
     )
+    WHATSAPP_BUSINESS_PHONE: str = Field(
+        default="+8801608529761", description="WhatsApp business phone number"
+    )
     VERIFY_TOKEN: str = Field(..., description="Webhook verification token")
 
     # Database Configuration

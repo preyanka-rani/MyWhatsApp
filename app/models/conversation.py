@@ -36,6 +36,9 @@ class Conversation(Base):
     type = Column(
         SQLEnum(ConversationType), nullable=False, default=ConversationType.DIRECT
     )
+    target_language = Column(
+        String(10), nullable=True
+    )  # Language to translate messages to for this conversation
     last_message_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
@@ -85,6 +88,9 @@ class ConversationMember(Base):
         nullable=False,
         index=True,
     )
+    custom_name = Column(
+        String(255), nullable=True
+    )  # Custom name for this conversation
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_read_at = Column(DateTime, nullable=True)
     is_muted = Column(Boolean, default=False)

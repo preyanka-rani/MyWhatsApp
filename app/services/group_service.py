@@ -91,6 +91,26 @@ class GroupService:
         await db.refresh(group)
 
         logger.info(f"Group created: {group.id} by user {created_by}")
+
+        # Notify all members about the new group
+        from app.websocket.manager import connection_manager
+
+        notification = {
+            "type": "group_created",
+            "data": {
+                "group_id": str(group.id),
+                "conversation_id": str(conversation.id),
+                "name": name,
+                "description": description,
+                "created_by": str(created_by),
+            },
+        }
+
+        # Notify all members including creator
+        all_member_ids = [created_by] + [mid for mid in member_ids if mid != created_by]
+        for member_id in all_member_ids:
+            await connection_manager.send_to_user(member_id, notification)
+
         return group
 
     async def get_group(self, db: AsyncSession, group_id: uuid.UUID) -> Optional[Group]:

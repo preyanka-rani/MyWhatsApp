@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Language Test</title>
+</head>
+<body>
+    <h1>Quick Language Test</h1>
+    
+    <div>
+        <h2>Current User Info:</h2>
+        <div id="userInfo"></div>
+    </div>
+    
+    <div>
+        <h2>Set Language:</h2>
+        <button onclick="setLanguage('bn')">Set Bengali (bn)</button>
+        <button onclick="setLanguage('en')">Set English (en)</button>
+        <button onclick="setLanguage('es')">Set Spanish (es)</button>
+    </div>
+    
+    <div>
+        <h2>Test Translation:</h2>
+        <button onclick="testMessages()">Load Messages with Translation</button>
+    </div>
+    
+    <div>
+        <h2>Results:</h2>
+        <pre id="results"></pre>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        const token = localStorage.getItem('whatsapp_token');
+        
+        async function showUserInfo() {
+            const response = await fetch(`${API_BASE}/auth/users/me`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const user = await response.json();
+            document.getElementById('userInfo').innerHTML = `
+                <p><strong>Phone:</strong> ${user.phone_number}</p>
+                <p><strong>Name:</strong> ${user.name}</p>
+                <p><strong>Preferred Language:</strong> ${user.preferred_language || 'NOT SET'}</p>
+            `;
+            console.log('User:', user);
+        }
+        
+        async function setLanguage(lang) {
+            document.getElementById('results').textContent = 'Setting language...';
+            
+            const response = await fetch(`${API_BASE}/auth/users/me/language`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ language: lang })
+            });
+            
+            const result = await response.json();
+            document.getElementById('results').textContent = JSON.stringify(result, null, 2);
+            
+            // Reload user info
+            await showUserInfo();
+        }
+        
+        async function testMessages() {
+            const convId = prompt('Enter conversation ID:');
+            if (!convId) return;
+            
+            document.getElementById('results').textContent = 'Loading messages...';
+            
+            const response = await fetch(`${API_BASE}/conversations/${convId}/messages`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            const messages = await response.json();
+            document.getElementById('results').textContent = JSON.stringify(messages, null, 2);
+        }
+        
+        // Load on startup
+        showUserInfo();
+    </script>
+</body>
+</html>

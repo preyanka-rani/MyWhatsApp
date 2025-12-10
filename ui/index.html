@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Web Clone</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <i class="fab fa-whatsapp"></i>
+                <h1>WhatsApp Web</h1>
+            </div>
+            <div class="login-content">
+                <h2>Login to WhatsApp</h2>
+                <p>Enter your phone number to receive OTP</p>
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label for="phoneNumber">Phone Number</label>
+                        <input 
+                            type="tel" 
+                            id="phoneNumber" 
+                            placeholder="+8801608529761" 
+                            required
+                        >
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Request OTP
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- OTP Verification Screen -->
+    <div id="otpScreen" class="login-screen" style="display: none;">
+        <div class="login-container">
+            <div class="login-header">
+                <i class="fab fa-whatsapp"></i>
+                <h1>WhatsApp Web</h1>
+            </div>
+            <div class="login-content">
+                <h2>Enter OTP</h2>
+                <p>We've sent a code to <span id="phoneDisplay"></span></p>
+                <form id="otpForm" class="login-form">
+                    <div class="form-group">
+                        <label for="otpCode">OTP Code</label>
+                        <input 
+                            type="text" 
+                            id="otpCode" 
+                            placeholder="Enter 6-digit code" 
+                            maxlength="6"
+                            required
+                        >
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check"></i> Verify & Login
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="backToLogin()">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chat Interface -->
+    <div id="chatInterface" class="chat-interface" style="display: none;">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Sidebar Header -->
+            <div class="sidebar-header">
+                <div class="user-profile">
+                    <div class="avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <span id="userName">User</span>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn" title="New Chat" onclick="showNewChatModal()">
+                        <i class="fas fa-message"></i>
+                    </button>
+                    <button class="icon-btn" title="Language" onclick="translationManager.showLanguageSelector()">
+                        <i class="fas fa-language"></i>
+                    </button>
+                    <button class="icon-btn" title="Menu">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <button class="icon-btn" title="Logout" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="search-bar">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search or start new chat">
+                </div>
+            </div>
+
+            <!-- Conversations List -->
+            <div class="conversations-list" id="conversationsList">
+                <div class="no-conversations">
+                    <i class="fas fa-comments"></i>
+                    <p>No conversations yet</p>
+                    <button class="btn btn-primary" onclick="showNewChatModal()">Start New Chat</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area">
+            <!-- No Chat Selected -->
+            <div class="no-chat-selected" id="noChatSelected">
+                <div class="no-chat-content">
+                    <i class="fab fa-whatsapp"></i>
+                    <h2>WhatsApp Web</h2>
+                    <p>Send and receive messages without keeping your phone online.</p>
+                    <p class="hint">Select a conversation to start chatting</p>
+                </div>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="chat-container" id="chatContainer" style="display: none;">
+                <!-- Chat Header -->
+                <div class="chat-header">
+                    <div class="chat-user-info" id="chatUserInfo" onclick="handleChatHeaderClick()">
+                        <div class="avatar" id="chatAvatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="user-details">
+                            <h3 id="chatUserName">Contact Name</h3>
+                            <span class="user-status" id="chatUserStatus">online</span>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="icon-btn" title="Search">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="icon-btn" title="More" onclick="showChatOptionsMenu(event)">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Chat Options Menu (Hidden by default) -->
+                <div id="chatOptionsMenu" class="dropdown-menu" style="display: none;">
+                    <div class="dropdown-item" onclick="showConversationLanguageSelector()">
+                        <i class="fas fa-language"></i>
+                        <span>Set Translation Language</span>
+                    </div>
+                    <div class="dropdown-item" onclick="viewContactInfo()">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Contact Info</span>
+                    </div>
+                </div>
+
+                <!-- Messages Area -->
+                <div class="messages-area" id="messagesArea">
+                    <!-- Messages will be loaded here -->
+                </div>
+
+                <!-- Message Input -->
+                <div class="message-input-area">
+                    <button class="icon-btn" title="Emoji">
+                        <i class="fas fa-face-smile"></i>
+                    </button>
+                    <button class="icon-btn" title="Attach">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <div class="input-wrapper">
+                        <input 
+                            type="text" 
+                            id="messageInput" 
+                            placeholder="Type a message"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Chat Modal -->
+    <div id="newChatModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <button class="icon-btn" onclick="closeNewChatModal()" style="margin-right: 1rem;">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2>New chat</h2>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <!-- Search Bar -->
+                <div class="search-bar" style="padding: 0.75rem 1rem;">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="newChatSearch" placeholder="Search name or number">
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="new-chat-actions">
+                    <div class="action-item" onclick="groupManager.showNewGroupModal()">
+                        <div class="action-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="action-text">
+                            <span class="action-title">New group</span>
+                        </div>
+                    </div>
+                    <div class="action-item" onclick="showAddContactModal()">
+                        <div class="action-icon">
+                            <i class="fas fa-user-plus"></i>
+                        </div>
+                        <div class="action-text">
+                            <span class="action-title">New contact</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact List Header -->
+                <div class="contacts-header">
+                    <span>Contacts on WhatsApp</span>
+                </div>
+
+                <!-- Contacts List -->
+                <div class="contacts-list" id="newChatContactsList">
+                    <!-- Contacts will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Contact Modal -->
+    <div id="addContactModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Contact</h2>
+                <button class="close-btn" onclick="closeAddContactModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box" style="margin-bottom: 1rem;">
+                    <i class="fas fa-info-circle"></i>
+                    Add any phone number to start chatting!
+                </div>
+                <form id="addContactForm">
+                    <div class="form-group">
+                        <label for="contactName">Contact Name (Optional)</label>
+                        <input 
+                            type="text" 
+                            id="contactName" 
+                            placeholder="John Doe"
+                        >
+                        <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                            Give this contact a custom name
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label for="contactPhone">Phone Number</label>
+                        <input 
+                            type="tel" 
+                            id="contactPhone" 
+                            placeholder="+8801980680622"
+                            required
+                        >
+                        <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                            Enter with country code (e.g., +880...)
+                        </small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i> Add Contact & Start Chat
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/chat.js"></script>
+    <script src="js/groups.js"></script>
+    <script src="js/translation.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

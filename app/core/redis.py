@@ -16,13 +16,22 @@ class RedisManager:
 
     async def connect(self):
         """Establish Redis connection."""
-        self.redis_client = await aioredis.from_url(
-            settings.REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True,
-            max_connections=settings.REDIS_MAX_CONNECTIONS,
-        )
-        self.pubsub = self.redis_client.pubsub()
+        try:
+            self.redis_client = await aioredis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=settings.REDIS_MAX_CONNECTIONS,
+            )
+            self.pubsub = self.redis_client.pubsub()
+            # Test connection
+            await self.redis_client.ping()
+            print("✅ Redis connected successfully")
+        except Exception as e:
+            print(f"⚠️  Redis not available: {e}")
+            print("📝 App will run without Redis features (pub/sub disabled)")
+            self.redis_client = None
+            self.pubsub = None
 
     async def disconnect(self):
         """Close Redis connection."""
@@ -40,6 +49,8 @@ class RedisManager:
             value: Value to store
             expiry: Optional expiration in seconds
         """
+        if not self.redis_client:
+            return
         if expiry:
             await self.redis_client.setex(key, expiry, value)
         else:
@@ -55,6 +66,8 @@ class RedisManager:
         Returns:
             Value or None if not found
         """
+        if not self.redis_client:
+            return None
         return await self.redis_client.get(key)
 
     async def delete_value(self, key: str):
@@ -64,6 +77,8 @@ class RedisManager:
         Args:
             key: Redis key
         """
+        if not self.redis_client:
+            return
         await self.redis_client.delete(key)
 
     async def publish(self, channel: str, message: str):
@@ -74,6 +89,8 @@ class RedisManager:
             channel: Channel name
             message: Message to publish
         """
+        if not self.redis_client:
+            return
         await self.redis_client.publish(channel, message)
 
     async def subscribe(self, *channels: str):
@@ -83,6 +100,8 @@ class RedisManager:
         Args:
             channels: Channel names to subscribe to
         """
+        if not self.pubsub:
+            return
         await self.pubsub.subscribe(*channels)
 
     async def unsubscribe(self, *channels: str):
@@ -92,6 +111,8 @@ class RedisManager:
         Args:
             channels: Channel names to unsubscribe from
         """
+        if not self.pubsub:
+            return
         await self.pubsub.unsubscribe(*channels)
 
     async def listen(self):
@@ -101,6 +122,8 @@ class RedisManager:
         Yields:
             Messages from subscribed channels
         """
+        if not self.pubsub:
+            return
         async for message in self.pubsub.listen():
             if message["type"] == "message":
                 yield message
