@@ -94,9 +94,13 @@ class AuthManager {
     async authenticatedRequest(endpoint, options = {}) {
         const headers = {
             'Authorization': `Bearer ${this.token}`,
-            'Content-Type': 'application/json',
             ...options.headers
         };
+
+        // Only add Content-Type if not explicitly removed (for file uploads)
+        if (!options.skipContentType && !options.headers?.hasOwnProperty('Content-Type')) {
+            headers['Content-Type'] = 'application/json';
+        }
 
         return fetch(`${CONFIG.API_BASE_URL}${endpoint}`, {
             ...options,

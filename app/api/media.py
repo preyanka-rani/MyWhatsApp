@@ -48,11 +48,12 @@ async def upload_media(
         url = await media_manager.upload_to_s3(
             file_data=file_data, filename=file.filename, mime_type=mime_type
         )
+        logger.info(f"Media uploaded to: {url}")
     except Exception as e:
-        logger.error(f"Failed to upload media: {e}")
+        logger.error(f"Failed to upload media: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload file",
+            detail=f"Failed to upload file: {str(e)}",
         )
 
     # Generate thumbnail for images
@@ -65,8 +66,10 @@ async def upload_media(
                 filename=f"thumb_{file.filename}",
                 mime_type="image/jpeg",
             )
+            logger.info(f"Thumbnail generated: {thumbnail_url}")
         except Exception as e:
-            logger.warning(f"Failed to generate thumbnail: {e}")
+            logger.warning(f"Failed to generate thumbnail: {e}", exc_info=True)
+            # Don't fail the upload if thumbnail generation fails
 
     # Create media record
     media = Media(

@@ -171,9 +171,12 @@
                     <button class="icon-btn" title="Emoji">
                         <i class="fas fa-face-smile"></i>
                     </button>
-                    <button class="icon-btn" title="Attach">
+                    <button class="icon-btn" title="Attach Media" onclick="document.getElementById('mediaFileInput').click()">
                         <i class="fas fa-paperclip"></i>
                     </button>
+                    <input type="file" id="mediaFileInput" style="display: none;" 
+                           accept="image/*,video/*,audio/*,.pdf,.doc,.docx" 
+                           onchange="handleMediaFileSelect(event)">
                     <div class="input-wrapper">
                         <input 
                             type="text" 

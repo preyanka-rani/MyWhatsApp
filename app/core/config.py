@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = Field(default="1.0.0", description="Application version")
     DEBUG: bool = Field(default=False, description="Debug mode")
     ALLOWED_ORIGINS: str = Field(default="*", description="CORS allowed origins")
+    PUBLIC_BASE_URL: str = Field(
+        default="http://localhost:8000",
+        description="Public base URL for media access (use ngrok URL for WhatsApp)",
+    )
 
     # Media Configuration
     MAX_UPLOAD_SIZE: int = Field(

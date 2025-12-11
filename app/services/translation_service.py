@@ -108,14 +108,14 @@ class TranslationService:
                         continue
 
             except asyncio.TimeoutError:
-                logger.warning(f"⏱️ Timeout with instance: {instance_url}")
+                logger.warning(f"⏱ Timeout with instance: {instance_url}")
                 continue
             except Exception as e:
-                logger.warning(f"❌ Error with instance {instance_url}: {str(e)}")
+                logger.warning(f" Error with instance {instance_url}: {str(e)}")
                 continue
 
         # All instances failed, return original text
-        logger.error("❌ All Lingva instances failed! Returning original text.")
+        logger.error(" All Lingva instances failed! Returning original text.")
         return {"translation": text, "source_lang": source_lang}
 
     async def translate_batch(

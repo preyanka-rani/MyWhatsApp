@@ -344,6 +344,65 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
+// Handle media file selection
+async function handleMediaFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        console.log('No file selected');
+        return;
+    }
+    
+    console.log('File selected:', file.name, file.type, file.size);
+    
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+        showToast('File size exceeds 10MB limit', 'error');
+        event.target.value = ''; // Reset input
+        return;
+    }
+    
+    // Check if conversation is selected
+    if (!chatManager.currentConversationId) {
+        showToast('Please select a conversation first', 'warning');
+        event.target.value = '';
+        return;
+    }
+    
+    console.log('Sending to conversation:', chatManager.currentConversationId);
+    
+    // Show preview and confirmation
+    const fileType = file.type.split('/')[0];
+    
+    try {
+        if (fileType === 'image') {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const confirmed = confirm(`Send image: ${file.name}?\nSize: ${(file.size / 1024).toFixed(1)} KB`);
+                if (confirmed) {
+                    const caption = prompt('Add a caption (optional):') || '';
+                    await chatManager.sendMediaMessage(chatManager.currentConversationId, file, caption);
+                }
+                event.target.value = ''; // Reset input
+            };
+            reader.readAsDataURL(file);
+        } else {
+            const confirmed = confirm(`Send ${fileType || 'file'}: ${file.name}?\nSize: ${(file.size / 1024).toFixed(1)} KB`);
+            if (confirmed) {
+                const caption = (fileType === 'video' || fileType === 'image') 
+                    ? (prompt('Add a caption (optional):') || '') 
+                    : '';
+                await chatManager.sendMediaMessage(chatManager.currentConversationId, file, caption);
+            }
+            event.target.value = ''; // Reset input
+        }
+    } catch (error) {
+        console.error('Error in handleMediaFileSelect:', error);
+        showToast('Error processing file: ' + error.message, 'error');
+        event.target.value = '';
+    }
+}
+
 // Handle online/offline events
 window.addEventListener('online', () => {
     showToast('Connection restored', 'success');

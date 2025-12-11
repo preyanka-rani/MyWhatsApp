@@ -8,7 +8,11 @@ A complete, production-ready WhatsApp-like messaging system built with FastAPI, 
 - **Phone Number Authentication** - OTP-based login with JWT tokens
 - **1:1 Messaging** - Direct messaging between users
 - **Group Chats** - Create groups, manage members, admin roles
-- **Media Sharing** - Images, videos, audio, documents with S3 storage
+- **Media Sharing** - Send/receive images, videos, audio, documents with S3 storage
+  - Automatic thumbnail generation for images
+  - Support for multiple file formats (JPEG, PNG, MP4, PDF, etc.)
+  - WhatsApp Business API integration for media
+  - Real-time media broadcasting via WebSocket
 - **Real-time Communication** - WebSocket support for instant messaging
 - **Message Status** - SENT, DELIVERED, READ receipts
 - **Presence System** - Online/offline status, last seen

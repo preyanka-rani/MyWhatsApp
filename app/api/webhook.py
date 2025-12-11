@@ -115,11 +115,13 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
     from_phone = event["from"]
     message_type = event["message_type"]
     text_content = event.get("text")
+    media_data = event.get("media")
     whatsapp_message_id = event.get("message_id")
 
     logger.info(f"   From: +{from_phone}")
     logger.info(f"   Type: {message_type}")
     logger.info(f"   Content: {text_content}")
+    logger.info(f"   Media: {media_data}")
     logger.info(f"   WhatsApp Message ID: {whatsapp_message_id}")
 
     # Find or create sender user
@@ -215,14 +217,91 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
         await db.flush()
         logger.info(f"✅ Added 2 members to conversation")
 
+    # Process media if present
+    media_id = None
+    if media_data and message_type != "text":
+        logger.info(f"📸 Processing {message_type} media...")
+        try:
+            from app.models import Media
+            from app.services.media_manager import media_manager
+
+            # Get WhatsApp media ID
+            whatsapp_media_id = media_data.get("id")
+            mime_type = media_data.get("mime_type", "application/octet-stream")
+            filename = media_data.get("filename", f"{message_type}_{whatsapp_media_id}")
+
+            logger.info(f"   WhatsApp Media ID: {whatsapp_media_id}")
+            logger.info(f"   MIME Type: {mime_type}")
+            logger.info(f"   Filename: {filename}")
+
+            # Download media from WhatsApp
+            logger.info("⬇️  Downloading media from WhatsApp...")
+            media_bytes = await whatsapp_client.download_media(whatsapp_media_id)
+            logger.info(f"✅ Downloaded {len(media_bytes)} bytes")
+
+            # Upload to S3
+            logger.info("☁️  Uploading to S3...")
+            url = await media_manager.upload_to_s3(
+                file_data=media_bytes, filename=filename, mime_type=mime_type
+            )
+            logger.info(f"✅ Uploaded to: {url}")
+
+            # Generate thumbnail for images
+            thumbnail_url = None
+            if mime_type.startswith("image/"):
+                try:
+                    logger.info("🖼️  Generating thumbnail...")
+                    thumbnail_data = await media_manager.generate_thumbnail(media_bytes)
+                    thumbnail_url = await media_manager.upload_to_s3(
+                        file_data=thumbnail_data,
+                        filename=f"thumb_{filename}",
+                        mime_type="image/jpeg",
+                    )
+                    logger.info(f"✅ Thumbnail created: {thumbnail_url}")
+                except Exception as thumb_error:
+                    logger.warning(f"⚠️  Thumbnail generation failed: {thumb_error}")
+
+            # Create media record
+            media = Media(
+                filename=filename,
+                mime_type=mime_type,
+                size=len(media_bytes),
+                url=url,
+                thumbnail_url=thumbnail_url,
+                whatsapp_media_id=whatsapp_media_id,
+                uploaded_by=sender.id,
+            )
+            db.add(media)
+            await db.flush()
+            media_id = media.id
+            logger.info(f"✅ Media record created: {media_id}")
+
+        except Exception as media_error:
+            logger.error(f"❌ Failed to process media: {media_error}")
+            import traceback
+
+            logger.error(traceback.format_exc())
+
+    # Map WhatsApp message types to our MessageType enum
+    type_mapping = {
+        "text": MessageType.TEXT,
+        "image": MessageType.IMAGE,
+        "video": MessageType.VIDEO,
+        "audio": MessageType.AUDIO,
+        "document": MessageType.DOCUMENT,
+        "location": MessageType.LOCATION,
+        "contacts": MessageType.CONTACT,
+    }
+
     # Create message
     logger.info("💾 Creating message in database...")
-    msg_type = MessageType.TEXT if message_type == "text" else MessageType.IMAGE
+    msg_type = type_mapping.get(message_type, MessageType.TEXT)
     message = Message(
         conversation_id=conversation.id,
         sender_id=sender.id,
         type=msg_type,
-        content=text_content,
+        content=text_content or (media_data.get("caption") if media_data else None),
+        media_id=media_id,
         status=MessageStatus.DELIVERED,
         whatsapp_message_id=whatsapp_message_id,
     )
@@ -244,21 +323,35 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
     # Broadcast to WebSocket connections
     logger.info("📡 Broadcasting to WebSocket connections...")
     try:
+        message_data = {
+            "id": str(message.id),
+            "conversation_id": str(conversation.id),
+            "sender_id": str(sender.id),
+            "content": text_content
+            or (media_data.get("caption") if media_data else None),
+            "type": msg_type.value,
+            "status": MessageStatus.DELIVERED.value,
+            "created_at": (
+                message.created_at.isoformat() if message.created_at else None
+            ),
+        }
+
+        # Include media information if present
+        if media_id:
+            message_data["media_id"] = str(media_id)
+            message_data["media"] = {
+                "id": str(media_id),
+                "url": url,
+                "thumbnail_url": thumbnail_url,
+                "mime_type": mime_type,
+                "filename": filename,
+            }
+
         await connection_manager.broadcast_to_conversation(
             str(conversation.id),
             {
                 "type": "new_message",
-                "message": {
-                    "id": str(message.id),
-                    "conversation_id": str(conversation.id),
-                    "sender_id": str(sender.id),
-                    "content": text_content,
-                    "type": msg_type.value,
-                    "status": MessageStatus.DELIVERED.value,
-                    "created_at": (
-                        message.created_at.isoformat() if message.created_at else None
-                    ),
-                },
+                "message": message_data,
             },
         )
         logger.info(f"✅ Message broadcasted via WebSocket successfully")

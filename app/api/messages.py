@@ -106,9 +106,6 @@ async def send_message(
         import json
 
         try:
-            logger.info(
-                f"Translating message to conversation target language: {conversation.target_language}"
-            )
             result = await translation_service.translate(
                 data.content,
                 source_lang="auto",
@@ -131,12 +128,6 @@ async def send_message(
             translations_dict[conversation.target_language] = translated_content
             message.translations = json.dumps(translations_dict)
             await db.commit()
-
-            logger.info(
-                f"Message translated from {result['source_lang']} to {conversation.target_language}"
-            )
-            logger.info(f"Original: {data.content[:100]}")
-            logger.info(f"Translated: {translated_content[:100]}")
         except Exception as e:
             logger.error(f"Translation failed: {e}")
             # Continue with original content if translation fails
@@ -165,17 +156,83 @@ async def send_message(
 
                 if recipient and recipient.phone_number:
                     try:
-                        # Send via WhatsApp Business API (use translated content if available)
-                        whatsapp_response = await whatsapp_client.send_message(
-                            to=recipient.phone_number,
-                            message_text=translated_content or "",
-                        )
-                        logger.info(
-                            f"WhatsApp message sent to {recipient.phone_number}: {whatsapp_response}"
-                        )
+                        # Send media or text via WhatsApp Business API
+                        if message_type != MessageType.TEXT and data.media_id:
+                            # Send media message
+                            from app.models import Media
+
+                            media = await db.get(Media, data.media_id)
+                            if media:
+                                # Map our MessageType to WhatsApp media type
+                                media_type_mapping = {
+                                    MessageType.IMAGE: "image",
+                                    MessageType.VIDEO: "video",
+                                    MessageType.AUDIO: "audio",
+                                    MessageType.DOCUMENT: "document",
+                                }
+                                whatsapp_media_type = media_type_mapping.get(
+                                    message_type, "document"
+                                )
+
+                                logger.info(
+                                    f"📸 Sending {whatsapp_media_type} to {recipient.phone_number}"
+                                )
+
+                                # Convert relative URL to absolute public URL for WhatsApp
+                                from app.core.config import settings
+
+                                media_url = (
+                                    media.url
+                                    if media.url.startswith("http")
+                                    else f"{settings.PUBLIC_BASE_URL}{media.url}"
+                                )
+                                logger.info(f"Media URL for WhatsApp: {media_url}")
+
+                                whatsapp_response = await whatsapp_client.send_media(
+                                    to=recipient.phone_number,
+                                    media_type=whatsapp_media_type,
+                                    media_link=media_url,
+                                    caption=data.content,
+                                    filename=(
+                                        media.filename
+                                        if message_type == MessageType.DOCUMENT
+                                        else None
+                                    ),
+                                )
+
+                                # Store WhatsApp message ID
+                                if (
+                                    whatsapp_response
+                                    and "messages" in whatsapp_response
+                                ):
+                                    message.whatsapp_message_id = whatsapp_response[
+                                        "messages"
+                                    ][0]["id"]
+                                    await db.commit()
+
+                                logger.info(
+                                    f"✅ Media sent via WhatsApp: {whatsapp_response}"
+                                )
+                        else:
+                            # Send text message (use translated content if available)
+                            whatsapp_response = await whatsapp_client.send_message(
+                                to=recipient.phone_number,
+                                message_text=translated_content or "",
+                            )
+
+                            # Store WhatsApp message ID
+                            if whatsapp_response and "messages" in whatsapp_response:
+                                message.whatsapp_message_id = whatsapp_response[
+                                    "messages"
+                                ][0]["id"]
+                                await db.commit()
+
+                            logger.info(
+                                f"✅ WhatsApp message sent to {recipient.phone_number}: {whatsapp_response}"
+                            )
                     except Exception as wa_error:
                         logger.error(
-                            f"Failed to send WhatsApp message to {recipient.phone_number}: {wa_error}"
+                            f"❌ Failed to send WhatsApp message to {recipient.phone_number}: {wa_error}"
                         )
                         # Continue even if WhatsApp sending fails
         except Exception as e:
@@ -186,7 +243,35 @@ async def send_message(
             f"Group message - skipping WhatsApp Business API (app-only feature)"
         )
 
-    return message
+    # Load media details if message has media and create response
+    msg_dict = {
+        "id": message.id,
+        "conversation_id": message.conversation_id,
+        "sender_id": message.sender_id,
+        "type": message.type.value if hasattr(message.type, "value") else message.type,
+        "content": message.content,
+        "media_id": message.media_id,
+        "media": None,
+        "reply_to_id": message.reply_to_id,
+        "status": (
+            message.status.value if hasattr(message.status, "value") else message.status
+        ),
+        "is_deleted": message.is_deleted,
+        "whatsapp_message_id": message.whatsapp_message_id,
+        "created_at": message.created_at,
+        "updated_at": message.updated_at,
+        "edited_at": message.edited_at,
+    }
+
+    if message.media_id:
+        from app.models import Media
+
+        media = await db.get(Media, message.media_id)
+        if media:
+            msg_dict["media"] = media.to_dict()
+
+    response_data = MessageResponse(**msg_dict)
+    return response_data
 
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageResponse])
@@ -224,24 +309,49 @@ async def get_messages(
         db=db, conversation_id=conversation_id, limit=limit, cursor=cursor
     )
 
-    # Translate messages to user's preferred language
-    logger.info(f"=" * 70)
-    logger.info(f"🌍 TRANSLATION CHECK")
-    logger.info(f"User ID: {current_user.id}")
-    logger.info(f"User Phone: {current_user.phone_number}")
-    logger.info(f"User Preferred Language: {current_user.preferred_language}")
-    logger.info(
-        f"Condition Check: preferred_language={current_user.preferred_language}, not 'en'={current_user.preferred_language != 'en'}"
-    )
-    logger.info(f"=" * 70)
+    # Load media details for messages with media
+    from app.models import Media
 
+    # Eagerly load media relationships to avoid lazy loading issues
+    message_ids = [msg.media_id for msg in messages if msg.media_id]
+    media_dict = {}
+    if message_ids:
+        stmt = select(Media).where(Media.id.in_(message_ids))
+        result = await db.execute(stmt)
+        media_dict = {media.id: media.to_dict() for media in result.scalars().all()}
+
+    # Create response data with media included
+    messages_data = []
+    for message in messages:
+        # Convert message to dict and add media if exists
+        msg_dict = {
+            "id": message.id,
+            "conversation_id": message.conversation_id,
+            "sender_id": message.sender_id,
+            "type": (
+                message.type.value if hasattr(message.type, "value") else message.type
+            ),
+            "content": message.content,
+            "media_id": message.media_id,
+            "media": media_dict.get(message.media_id),
+            "reply_to_id": message.reply_to_id,
+            "status": (
+                message.status.value
+                if hasattr(message.status, "value")
+                else message.status
+            ),
+            "is_deleted": message.is_deleted,
+            "whatsapp_message_id": message.whatsapp_message_id,
+            "created_at": message.created_at,
+            "updated_at": message.updated_at,
+            "edited_at": message.edited_at,
+        }
+        messages_data.append(MessageResponse(**msg_dict))
+
+    # Translate messages to user's preferred language
     if current_user.preferred_language and current_user.preferred_language != "en":
         from app.services.translation_service import translation_service
         import json
-
-        logger.info(
-            f"⚡ Translating {len(messages)} messages to {current_user.preferred_language}"
-        )
 
         # Collect messages that need translation
         messages_to_translate = []
@@ -255,8 +365,8 @@ async def get_messages(
                     try:
                         translations_dict = json.loads(message.translations)
                         if current_user.preferred_language in translations_dict:
-                            # Use cached translation
-                            message.content = translations_dict[
+                            # Use cached translation - update the response data
+                            messages_data[idx].content = translations_dict[
                                 current_user.preferred_language
                             ]
                             has_translation = True
@@ -270,9 +380,6 @@ async def get_messages(
 
         # Batch translate all messages at once
         if messages_to_translate:
-            logger.info(
-                f"🔄 Batch translating {len(messages_to_translate)} new messages..."
-            )
             try:
                 results = await translation_service.translate_batch(
                     messages_to_translate,
@@ -301,22 +408,16 @@ async def get_messages(
                     if not message.original_language:
                         message.original_language = result["source_lang"]
 
-                    # Update message content
+                    # Update both the model and response data
                     message.content = result["translation"]
+                    messages_data[msg_idx].content = result["translation"]
 
-                logger.info(f"✅ Batch translation complete!")
+                # Commit translation cache to database
+                await db.commit()
             except Exception as e:
                 logger.error(f"❌ Batch translation failed: {e}")
 
-        logger.info(f"Message {message.id} content updated to: {message.content[:100]}")
-
-        # Commit translation cache to database
-        await db.commit()
-        logger.info("Translation cache committed to database")
-    else:
-        logger.info("Skipping translation: preferred_language is None or 'en'")
-
-    return messages
+    return messages_data
 
 
 @router.patch("/messages/{message_id}", response_model=MessageResponse)

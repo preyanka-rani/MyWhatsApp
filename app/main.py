@@ -4,8 +4,10 @@ Main FastAPI application module.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import os
 
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -75,6 +77,11 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# Mount static files directory for media uploads
+uploads_dir = "uploads"
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 # Include API routers
 app.include_router(api_router, prefix="/api")

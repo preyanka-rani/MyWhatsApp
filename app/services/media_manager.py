@@ -25,16 +25,53 @@ class MediaManager:
 
     def __init__(self):
         """Initialize Media Manager with S3 client."""
-        self.s3_client = (
-            boto3.client(
-                "s3",
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                region_name=settings.AWS_REGION,
-            )
-            if settings.AWS_ACCESS_KEY_ID
-            else None
+        # Only create S3 client if credentials are properly configured
+        # Check for valid (non-placeholder) AWS credentials
+        valid_key = settings.AWS_ACCESS_KEY_ID and settings.AWS_ACCESS_KEY_ID not in [
+            "",
+            "your_aws_access_key",
+            "your-access-key",
+        ]
+        valid_secret = (
+            settings.AWS_SECRET_ACCESS_KEY
+            and settings.AWS_SECRET_ACCESS_KEY
+            not in ["", "your_aws_secret_key", "your-secret-key"]
         )
+        valid_bucket = settings.S3_BUCKET_NAME and settings.S3_BUCKET_NAME not in [
+            "",
+            "your-bucket-name",
+        ]
+
+        print(
+            f"DEBUG: valid_key={valid_key}, valid_secret={valid_secret}, valid_bucket={valid_bucket}"
+        )
+
+        if valid_key and valid_secret and valid_bucket:
+            try:
+                self.s3_client = boto3.client(
+                    "s3",
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                    region_name=settings.AWS_REGION,
+                )
+                logger.info(
+                    f"S3 client initialized for bucket: {settings.S3_BUCKET_NAME}"
+                )
+                print(f"✅ S3 client initialized for bucket: {settings.S3_BUCKET_NAME}")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize S3 client: {e}. Using local storage."
+                )
+                self.s3_client = None
+                print(f"⚠️ Failed to initialize S3 client: {e}. Using local storage.")
+        else:
+            logger.info(
+                "AWS credentials not configured. Using local storage for media files."
+            )
+            print(
+                "✅ AWS credentials not configured. Using local storage for media files."
+            )
+            self.s3_client = None
 
         self.bucket_name = settings.S3_BUCKET_NAME
         self.max_upload_size = settings.MAX_UPLOAD_SIZE

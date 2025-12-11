@@ -3,7 +3,7 @@ Pydantic schemas for request/response validation.
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 import re
@@ -125,6 +125,7 @@ class MessageResponse(BaseModel):
     type: str
     content: Optional[str]
     media_id: Optional[UUID]
+    media: Optional[Dict[str, Any]] = None  # Nested media details
     reply_to_id: Optional[UUID]
     status: str
     is_deleted: bool

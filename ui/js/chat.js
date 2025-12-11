@@ -110,15 +110,16 @@ class ChatManager {
     }
 
     // Send message
-    async sendMessage(conversationId, content) {
+    async sendMessage(conversationId, content, messageType = 'TEXT', mediaId = null) {
         try {
             const response = await authManager.authenticatedRequest(
                 `/conversations/${conversationId}/messages`,
                 {
                     method: 'POST',
                     body: JSON.stringify({
-                        type: 'TEXT',
-                        content: content
+                        type: messageType,
+                        content: content,
+                        media_id: mediaId
                     })
                 }
             );
@@ -147,6 +148,79 @@ class ChatManager {
         } catch (error) {
             console.error('Error sending message:', error);
             showToast('Error sending message', 'error');
+            return null;
+        }
+    }
+
+    // Upload media file
+    async uploadMedia(file) {
+        try {
+            console.log('Uploading file:', file.name, file.type, file.size);
+            showLoading();
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            console.log('FormData created, sending request...');
+            const response = await authManager.authenticatedRequest(
+                '/media',
+                {
+                    method: 'POST',
+                    body: formData,
+                    skipContentType: true // Don't set Content-Type, let browser handle it
+                }
+            );
+            
+            hideLoading();
+            
+            console.log('Response status:', response.status);
+            
+            if (response.ok) {
+                const media = await response.json();
+                console.log('Media uploaded:', media);
+                showToast('Media uploaded successfully!', 'success');
+                return media;
+            } else {
+                const errorText = await response.text();
+                console.error('Upload failed:', response.status, errorText);
+                try {
+                    const error = JSON.parse(errorText);
+                    showToast(error.detail || 'Failed to upload media', 'error');
+                } catch {
+                    showToast(`Failed to upload media: ${response.status}`, 'error');
+                }
+                return null;
+            }
+        } catch (error) {
+            hideLoading();
+            console.error('Error uploading media:', error);
+            showToast('Error uploading media: ' + error.message, 'error');
+            return null;
+        }
+    }
+
+    // Send media message
+    async sendMediaMessage(conversationId, file, caption = '') {
+        try {
+            // Upload media first
+            const media = await this.uploadMedia(file);
+            if (!media) return null;
+            
+            // Determine message type from MIME type
+            let messageType = 'DOCUMENT';
+            if (media.mime_type.startsWith('image/')) {
+                messageType = 'IMAGE';
+            } else if (media.mime_type.startsWith('video/')) {
+                messageType = 'VIDEO';
+            } else if (media.mime_type.startsWith('audio/')) {
+                messageType = 'AUDIO';
+            }
+            
+            // Send message with media
+            return await this.sendMessage(conversationId, caption, messageType, media.id);
+        } catch (error) {
+            console.error('Error sending media message:', error);
+            showToast('Error sending media message', 'error');
             return null;
         }
     }
@@ -317,11 +391,65 @@ class ChatManager {
                 lastDate = messageDate;
             }
 
+            // Generate media content if present
+            let mediaContent = '';
+            if (msg.media && msg.media.url) {
+                const media = msg.media;
+                // Ensure media URLs are absolute
+                const mediaUrl = media.url.startsWith('http') ? media.url : `http://localhost:8000${media.url}`;
+                const thumbnailUrl = media.thumbnail_url ? 
+                    (media.thumbnail_url.startsWith('http') ? media.thumbnail_url : `http://localhost:8000${media.thumbnail_url}`) 
+                    : mediaUrl;
+                
+                if (msg.type === 'IMAGE') {
+                    mediaContent = `
+                        <div class="message-media">
+                            <img src="${thumbnailUrl}" 
+                                 alt="${media.filename}"
+                                 onclick="window.open('${mediaUrl}', '_blank')"
+                                 style="max-width: 300px; max-height: 300px; border-radius: 8px; cursor: pointer;">
+                        </div>
+                    `;
+                } else if (msg.type === 'VIDEO') {
+                    mediaContent = `
+                        <div class="message-media">
+                            <video controls style="max-width: 300px; max-height: 300px; border-radius: 8px;">
+                                <source src="${mediaUrl}" type="${media.mime_type}">
+                                Your browser does not support video playback.
+                            </video>
+                        </div>
+                    `;
+                } else if (msg.type === 'AUDIO') {
+                    mediaContent = `
+                        <div class="message-media">
+                            <audio controls style="width: 300px;">
+                                <source src="${mediaUrl}" type="${media.mime_type}">
+                                Your browser does not support audio playback.
+                            </audio>
+                        </div>
+                    `;
+                } else if (msg.type === 'DOCUMENT') {
+                    mediaContent = `
+                        <div class="message-media message-document">
+                            <a href="${mediaUrl}" target="_blank" download="${media.filename}" 
+                               style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit;">
+                                <i class="fas fa-file-${this.getDocumentIcon(media.mime_type)}" style="font-size: 2rem;"></i>
+                                <div>
+                                    <div style="font-weight: 500;">${media.filename}</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">${this.formatFileSize(media.size)}</div>
+                                </div>
+                            </a>
+                        </div>
+                    `;
+                }
+            }
+
             return `
                 ${dateHtml}
                 <div class="message ${isSent ? 'sent' : 'received'}">
                     <div class="message-bubble">
-                        <div class="message-content">${this.escapeHtml(msg.content)}</div>
+                        ${mediaContent}
+                        ${msg.content ? `<div class="message-content">${this.escapeHtml(msg.content)}</div>` : ''}
                         <div class="message-meta">
                             <span>${this.formatTime(msg.created_at)}</span>
                             ${isSent ? '<i class="fas fa-check-double message-status"></i>' : ''}
@@ -333,6 +461,23 @@ class ChatManager {
         
         // Scroll to bottom
         messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    // Helper: Get document icon based on MIME type
+    getDocumentIcon(mimeType) {
+        if (mimeType.includes('pdf')) return 'pdf';
+        if (mimeType.includes('word')) return 'word';
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'excel';
+        if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return 'powerpoint';
+        if (mimeType.includes('zip') || mimeType.includes('archive')) return 'archive';
+        return 'alt';
+    }
+
+    // Helper: Format file size
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
     // Search conversations

@@ -76,23 +76,40 @@ class MessageService:
         try:
             from app.websocket.manager import connection_manager
 
+            message_data = {
+                "id": str(message.id),
+                "conversation_id": str(conversation_id),
+                "sender_id": str(sender_id),
+                "content": content,
+                "type": message_type.value,
+                "status": MessageStatus.SENT.value,
+                "created_at": (
+                    message.created_at.isoformat() if message.created_at else None
+                ),
+            }
+
+            # Include media information if present
+            if media_id:
+                message_data["media_id"] = str(media_id)
+                # Load media details
+                from app.models import Media
+
+                media = await db.get(Media, media_id)
+                if media:
+                    message_data["media"] = {
+                        "id": str(media.id),
+                        "url": media.url,
+                        "thumbnail_url": media.thumbnail_url,
+                        "mime_type": media.mime_type,
+                        "filename": media.filename,
+                        "size": media.size,
+                    }
+
             await connection_manager.broadcast_to_conversation(
                 str(conversation_id),
                 {
                     "type": "new_message",
-                    "message": {
-                        "id": str(message.id),
-                        "conversation_id": str(conversation_id),
-                        "sender_id": str(sender_id),
-                        "content": content,
-                        "type": message_type.value,
-                        "status": MessageStatus.SENT.value,
-                        "created_at": (
-                            message.created_at.isoformat()
-                            if message.created_at
-                            else None
-                        ),
-                    },
+                    "message": message_data,
                 },
             )
             logger.info(f"Message broadcasted via WebSocket: {message.id}")
