@@ -1,7 +1,3 @@
-"""
-Message model for chat messages.
-"""
-
 from datetime import datetime
 from sqlalchemy import (
     Column,

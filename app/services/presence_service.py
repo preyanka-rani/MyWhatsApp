@@ -1,7 +1,3 @@
-"""
-Presence Service for managing user online/offline status and last seen.
-"""
-
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime

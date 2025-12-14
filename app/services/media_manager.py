@@ -1,7 +1,3 @@
-"""
-Media Manager for handling file uploads, S3 storage, and thumbnail generation.
-"""
-
 import boto3
 from botocore.exceptions import ClientError
 from PIL import Image
@@ -57,19 +53,19 @@ class MediaManager:
                 logger.info(
                     f"S3 client initialized for bucket: {settings.S3_BUCKET_NAME}"
                 )
-                print(f"✅ S3 client initialized for bucket: {settings.S3_BUCKET_NAME}")
+                print(f" S3 client initialized for bucket: {settings.S3_BUCKET_NAME}")
             except Exception as e:
                 logger.warning(
                     f"Failed to initialize S3 client: {e}. Using local storage."
                 )
                 self.s3_client = None
-                print(f"⚠️ Failed to initialize S3 client: {e}. Using local storage.")
+                print(f" Failed to initialize S3 client: {e}. Using local storage.")
         else:
             logger.info(
                 "AWS credentials not configured. Using local storage for media files."
             )
             print(
-                "✅ AWS credentials not configured. Using local storage for media files."
+                " AWS credentials not configured. Using local storage for media files."
             )
             self.s3_client = None
 

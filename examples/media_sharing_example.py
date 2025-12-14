@@ -1,13 +1,3 @@
-"""
-Example: Media Sharing - Send and Receive Images, Videos, Audio, and Documents
-
-This example demonstrates:
-1. Uploading media files
-2. Sending media messages
-3. Receiving media via WebSocket
-4. Downloading and displaying media
-"""
-
 import asyncio
 import httpx
 import websockets
@@ -32,10 +22,10 @@ class MediaSharingExample:
                 f"{self.base_url}/api/auth/request-otp",
                 json={"phone_number": phone_number},
             )
-            print(f"✅ OTP requested: {response.json()}")
+            print(f" OTP requested: {response.json()}")
 
             # Verify OTP
-            print(f"🔐 Verifying OTP...")
+            print(f" Verifying OTP...")
             response = await client.post(
                 f"{self.base_url}/api/auth/verify-otp",
                 json={"phone_number": phone_number, "otp_code": otp_code},
@@ -43,7 +33,7 @@ class MediaSharingExample:
             data = response.json()
             self.token = data["access_token"]
             self.user_id = data["user"]["id"]
-            print(f"✅ Authenticated! Token: {self.token[:20]}...")
+            print(f" Authenticated! Token: {self.token[:20]}...")
             return self.token
 
     async def upload_media(self, file_path: str) -> dict:
@@ -78,7 +68,7 @@ class MediaSharingExample:
         }
         mime_type = mime_types.get(file.suffix.lower(), "application/octet-stream")
 
-        print(f"📤 Uploading {file.name} ({mime_type})...")
+        print(f" Uploading {file.name} ({mime_type})...")
 
         async with httpx.AsyncClient() as client:
             with open(file_path, "rb") as f:
@@ -89,7 +79,7 @@ class MediaSharingExample:
 
             if response.status_code == 201:
                 media = response.json()
-                print(f"✅ Media uploaded successfully!")
+                print(f" Media uploaded successfully!")
                 print(f"   ID: {media['id']}")
                 print(f"   URL: {media['url']}")
                 print(f"   Size: {media['size']} bytes")
@@ -97,7 +87,7 @@ class MediaSharingExample:
                     print(f"   Thumbnail: {media['thumbnail_url']}")
                 return media
             else:
-                print(f"❌ Upload failed: {response.text}")
+                print(f" Upload failed: {response.text}")
                 raise Exception(f"Upload failed: {response.status_code}")
 
     async def send_image(
@@ -122,11 +112,11 @@ class MediaSharingExample:
 
             if response.status_code == 201:
                 message = response.json()
-                print(f"📸 Image message sent!")
+                print(f" Image message sent!")
                 print(f"   Message ID: {message['id']}")
                 return message
             else:
-                print(f"❌ Failed to send message: {response.text}")
+                print(f" Failed to send message: {response.text}")
 
     async def send_video(
         self, conversation_id: str, file_path: str, caption: str = None
@@ -148,11 +138,11 @@ class MediaSharingExample:
 
             if response.status_code == 201:
                 message = response.json()
-                print(f"🎥 Video message sent!")
+                print(f" Video message sent!")
                 print(f"   Message ID: {message['id']}")
                 return message
             else:
-                print(f"❌ Failed to send message: {response.text}")
+                print(f" Failed to send message: {response.text}")
 
     async def send_audio(self, conversation_id: str, file_path: str):
         """Send an audio message."""
@@ -171,11 +161,11 @@ class MediaSharingExample:
 
             if response.status_code == 201:
                 message = response.json()
-                print(f"🎵 Audio message sent!")
+                print(f" Audio message sent!")
                 print(f"   Message ID: {message['id']}")
                 return message
             else:
-                print(f"❌ Failed to send message: {response.text}")
+                print(f" Failed to send message: {response.text}")
 
     async def send_document(
         self, conversation_id: str, file_path: str, caption: str = None
@@ -197,11 +187,11 @@ class MediaSharingExample:
 
             if response.status_code == 201:
                 message = response.json()
-                print(f"📄 Document message sent!")
+                print(f" Document message sent!")
                 print(f"   Message ID: {message['id']}")
                 return message
             else:
-                print(f"❌ Failed to send message: {response.text}")
+                print(f" Failed to send message: {response.text}")
 
     async def receive_messages_websocket(self):
         """Connect to WebSocket and receive real-time messages including media."""
@@ -210,7 +200,7 @@ class MediaSharingExample:
         print(f"🔌 Connecting to WebSocket...")
 
         async with websockets.connect(uri) as websocket:
-            print(f"✅ Connected to WebSocket!")
+            print(f" Connected to WebSocket!")
 
             # Send heartbeat periodically
             async def send_heartbeat():
@@ -226,7 +216,7 @@ class MediaSharingExample:
                 async for message in websocket:
                     data = json.loads(message)
                     print("\n" + "=" * 60)
-                    print(f"📥 Received: {data['type']}")
+                    print(f" Received: {data['type']}")
 
                     if data["type"] == "new_message":
                         msg = data["message"]
@@ -264,7 +254,7 @@ class MediaSharingExample:
                     print("=" * 60)
 
             except websockets.exceptions.ConnectionClosed:
-                print("❌ WebSocket connection closed")
+                print(" WebSocket connection closed")
             finally:
                 heartbeat_task.cancel()
 
@@ -281,7 +271,7 @@ class MediaSharingExample:
 
             if response.status_code == 200:
                 messages = response.json()
-                print(f"📬 Retrieved {len(messages)} messages")
+                print(f" Retrieved {len(messages)} messages")
 
                 for msg in messages:
                     print(f"\n--- Message {msg['id'][:8]}... ---")
@@ -300,11 +290,11 @@ class MediaSharingExample:
 
                 return messages
             else:
-                print(f"❌ Failed to get messages: {response.text}")
+                print(f" Failed to get messages: {response.text}")
 
     async def download_media(self, media_url: str, save_path: str):
         """Download media file from URL."""
-        print(f"⬇️  Downloading from {media_url}...")
+        print(f"⬇  Downloading from {media_url}...")
 
         async with httpx.AsyncClient() as client:
             response = await client.get(media_url)
@@ -312,9 +302,9 @@ class MediaSharingExample:
             if response.status_code == 200:
                 with open(save_path, "wb") as f:
                     f.write(response.content)
-                print(f"✅ Saved to {save_path}")
+                print(f" Saved to {save_path}")
             else:
-                print(f"❌ Download failed: {response.status_code}")
+                print(f" Download failed: {response.status_code}")
 
 
 async def main():
@@ -336,7 +326,7 @@ async def main():
     # await example.send_image(
     #     conversation_id=conversation_id,
     #     file_path="path/to/image.jpg",
-    #     caption="Check out this image! 📸"
+    #     caption="Check out this image! "
     # )
 
     # Example 2: Send a video
@@ -346,7 +336,7 @@ async def main():
     # await example.send_video(
     #     conversation_id=conversation_id,
     #     file_path="path/to/video.mp4",
-    #     caption="Amazing video! 🎥"
+    #     caption="Amazing video! "
     # )
 
     # Example 3: Send audio
@@ -365,7 +355,7 @@ async def main():
     # await example.send_document(
     #     conversation_id=conversation_id,
     #     file_path="path/to/document.pdf",
-    #     caption="Important document 📄"
+    #     caption="Important document "
     # )
 
     # Example 5: Get conversation messages with media

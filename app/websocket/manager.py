@@ -1,7 +1,3 @@
-"""
-WebSocket connection manager for real-time communication.
-"""
-
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict, Set, Optional
 import uuid

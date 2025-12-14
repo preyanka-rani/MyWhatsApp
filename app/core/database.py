@@ -1,8 +1,3 @@
-"""
-Database session management and configuration.
-Provides async database engine and session factory.
-"""
-
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base

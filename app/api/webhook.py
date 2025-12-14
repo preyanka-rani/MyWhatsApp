@@ -1,7 +1,3 @@
-"""
-Webhook endpoints for WhatsApp Business API integration.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -50,7 +46,7 @@ async def handle_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         webhook_data = await request.json()
         logger.info("=" * 70)
-        logger.info("📥 WEBHOOK EVENT RECEIVED")
+        logger.info(" WEBHOOK EVENT RECEIVED")
         logger.info("=" * 70)
         logger.info(f"Raw webhook data: {webhook_data}")
 
@@ -58,30 +54,30 @@ async def handle_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         event = whatsapp_client.parse_webhook_event(webhook_data)
 
         if not event:
-            logger.warning("⚠️  Failed to parse webhook event - event is None")
+            logger.warning("  Failed to parse webhook event - event is None")
             logger.warning(f"Webhook data was: {webhook_data}")
             return {"status": "ignored"}
 
-        logger.info(f"✅ Parsed event type: {event['type']}")
+        logger.info(f" Parsed event type: {event['type']}")
         logger.info(f"Event details: {event}")
 
         # Handle message event
         if event["type"] == "message":
-            logger.info("📨 Processing incoming message...")
+            logger.info(" Processing incoming message...")
             await handle_incoming_message(db, event)
 
         # Handle status update event
         elif event["type"] == "status":
-            logger.info("📊 Processing status update...")
+            logger.info(" Processing status update...")
             await handle_status_update(db, event)
 
-        logger.info("✅ Webhook processed successfully")
+        logger.info(" Webhook processed successfully")
         logger.info("=" * 70)
         return {"status": "success"}
 
     except Exception as e:
         logger.error("=" * 70)
-        logger.error(f"❌ ERROR handling webhook: {e}")
+        logger.error(f" ERROR handling webhook: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
@@ -110,7 +106,7 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
     from sqlalchemy import and_
     import uuid as uuid_module
 
-    logger.info("🔍 Processing incoming message event...")
+    logger.info(" Processing incoming message event...")
 
     from_phone = event["from"]
     message_type = event["message_type"]
@@ -125,30 +121,30 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
     logger.info(f"   WhatsApp Message ID: {whatsapp_message_id}")
 
     # Find or create sender user
-    logger.info(f"🔍 Looking for sender user: +{from_phone}")
+    logger.info(f" Looking for sender user: +{from_phone}")
     sender_result = await db.execute(
         select(User).where(User.phone_number == f"+{from_phone}")
     )
     sender = sender_result.scalar_one_or_none()
 
     if not sender:
-        logger.info(f"👤 Creating new user for: +{from_phone}")
+        logger.info(f" Creating new user for: +{from_phone}")
         sender = User(phone_number=f"+{from_phone}")
         db.add(sender)
         await db.flush()
-        logger.info(f"✅ User created with ID: {sender.id}")
+        logger.info(f" User created with ID: {sender.id}")
     else:
-        logger.info(f"✅ Found sender user ID: {sender.id}")
+        logger.info(f" Found sender user ID: {sender.id}")
 
     # Get the WhatsApp Business account owner (recipient of this message)
-    logger.info(f"🔍 Looking for business account: {settings.WHATSAPP_BUSINESS_PHONE}")
+    logger.info(f" Looking for business account: {settings.WHATSAPP_BUSINESS_PHONE}")
     recipient_result = await db.execute(
         select(User).where(User.phone_number == settings.WHATSAPP_BUSINESS_PHONE)
     )
     recipient = recipient_result.scalar_one_or_none()
 
     if not recipient:
-        logger.warning(f"⚠️  Business phone not found, looking for any other user...")
+        logger.warning(f"  Business phone not found, looking for any other user...")
         # If no business phone configured, find any user that's not the sender
         recipient_result = await db.execute(
             select(User).where(User.id != sender.id).limit(1)
@@ -156,13 +152,13 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
         recipient = recipient_result.scalar_one_or_none()
 
     if not recipient:
-        logger.error("❌ No recipient user found to receive message")
+        logger.error(" No recipient user found to receive message")
         return
 
-    logger.info(f"✅ Recipient user ID: {recipient.id} ({recipient.phone_number})")
+    logger.info(f" Recipient user ID: {recipient.id} ({recipient.phone_number})")
 
     # Find or create conversation between sender and recipient
-    logger.info("🔍 Looking for existing conversation...")
+    logger.info(" Looking for existing conversation...")
     existing = await db.execute(
         select(Conversation)
         .join(ConversationMember, ConversationMember.conversation_id == Conversation.id)
@@ -192,18 +188,18 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
             member_ids = {m.user_id for m in members}
             if member_ids == {sender.id, recipient.id}:
                 conversation = conv
-                logger.info(f"✅ Found existing conversation: {conv.id}")
+                logger.info(f" Fund existing conversation: {conv.id}")
                 break
 
     # Create conversation if not found
     if not conversation:
         logger.info(
-            f"💬 Creating new conversation between {sender.phone_number} and {recipient.phone_number}"
+            f" Creating new conversation between {sender.phone_number} and {recipient.phone_number}"
         )
         conversation = Conversation(type=ConversationType.DIRECT)
         db.add(conversation)
         await db.flush()
-        logger.info(f"✅ Conversation created with ID: {conversation.id}")
+        logger.info(f" Conversation created with ID: {conversation.id}")
 
         # Add members
         member1 = ConversationMember(
@@ -215,12 +211,12 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
         db.add(member1)
         db.add(member2)
         await db.flush()
-        logger.info(f"✅ Added 2 members to conversation")
+        logger.info(f" Added 2 members to conversation")
 
     # Process media if present
     media_id = None
     if media_data and message_type != "text":
-        logger.info(f"📸 Processing {message_type} media...")
+        logger.info(f" Processing {message_type} media...")
         try:
             from app.models import Media
             from app.services.media_manager import media_manager
@@ -235,31 +231,31 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
             logger.info(f"   Filename: {filename}")
 
             # Download media from WhatsApp
-            logger.info("⬇️  Downloading media from WhatsApp...")
+            logger.info("⬇  Downloading media from WhatsApp...")
             media_bytes = await whatsapp_client.download_media(whatsapp_media_id)
-            logger.info(f"✅ Downloaded {len(media_bytes)} bytes")
+            logger.info(f" Downloaded {len(media_bytes)} bytes")
 
             # Upload to S3
-            logger.info("☁️  Uploading to S3...")
+            logger.info("  Uploading to S3...")
             url = await media_manager.upload_to_s3(
                 file_data=media_bytes, filename=filename, mime_type=mime_type
             )
-            logger.info(f"✅ Uploaded to: {url}")
+            logger.info(f" Uploaded to: {url}")
 
             # Generate thumbnail for images
             thumbnail_url = None
             if mime_type.startswith("image/"):
                 try:
-                    logger.info("🖼️  Generating thumbnail...")
+                    logger.info("  Generating thumbnail...")
                     thumbnail_data = await media_manager.generate_thumbnail(media_bytes)
                     thumbnail_url = await media_manager.upload_to_s3(
                         file_data=thumbnail_data,
                         filename=f"thumb_{filename}",
                         mime_type="image/jpeg",
                     )
-                    logger.info(f"✅ Thumbnail created: {thumbnail_url}")
+                    logger.info(f" Thumbnail created: {thumbnail_url}")
                 except Exception as thumb_error:
-                    logger.warning(f"⚠️  Thumbnail generation failed: {thumb_error}")
+                    logger.warning(f"  Thumbnail generation failed: {thumb_error}")
 
             # Create media record
             media = Media(
@@ -274,10 +270,10 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
             db.add(media)
             await db.flush()
             media_id = media.id
-            logger.info(f"✅ Media record created: {media_id}")
+            logger.info(f" Media record created: {media_id}")
 
         except Exception as media_error:
-            logger.error(f"❌ Failed to process media: {media_error}")
+            logger.error(f" Failed to process media: {media_error}")
             import traceback
 
             logger.error(traceback.format_exc())
@@ -294,7 +290,7 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
     }
 
     # Create message
-    logger.info("💾 Creating message in database...")
+    logger.info(" Creating message in database...")
     msg_type = type_mapping.get(message_type, MessageType.TEXT)
     message = Message(
         conversation_id=conversation.id,
@@ -314,14 +310,14 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
     await db.commit()
     await db.refresh(message)
 
-    logger.info(f"✅ Message saved to database!")
+    logger.info(f" Message saved to database!")
     logger.info(f"   Message ID: {message.id}")
     logger.info(f"   Conversation ID: {conversation.id}")
     logger.info(f"   Sender ID: {sender.id}")
     logger.info(f"   Content: {text_content}")
 
     # Broadcast to WebSocket connections
-    logger.info("📡 Broadcasting to WebSocket connections...")
+    logger.info(" Broadcasting to WebSocket connections...")
     try:
         message_data = {
             "id": str(message.id),
@@ -354,15 +350,15 @@ async def handle_incoming_message(db: AsyncSession, event: dict):
                 "message": message_data,
             },
         )
-        logger.info(f"✅ Message broadcasted via WebSocket successfully")
+        logger.info(f" Message broadcasted via WebSocket successfully")
     except Exception as e:
-        logger.error(f"❌ Failed to broadcast message: {e}")
+        logger.error(f" Failed to broadcast message: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
 
     logger.info("=" * 70)
-    logger.info("✅ INCOMING MESSAGE PROCESSED SUCCESSFULLY")
+    logger.info(" INCOMING MESSAGE PROCESSED SUCCESSFULLY")
     logger.info("=" * 70)
 
 

@@ -1,7 +1,3 @@
-"""
-Message Service for handling message operations.
-"""
-
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc

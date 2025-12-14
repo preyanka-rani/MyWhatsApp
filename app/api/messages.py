@@ -1,7 +1,3 @@
-"""
-Messages API endpoints.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -175,7 +171,7 @@ async def send_message(
                                 )
 
                                 logger.info(
-                                    f"📸 Sending {whatsapp_media_type} to {recipient.phone_number}"
+                                    f"Sending {whatsapp_media_type} to {recipient.phone_number}"
                                 )
 
                                 # Convert relative URL to absolute public URL for WhatsApp
@@ -211,7 +207,7 @@ async def send_message(
                                     await db.commit()
 
                                 logger.info(
-                                    f"✅ Media sent via WhatsApp: {whatsapp_response}"
+                                    f" Media sent via WhatsApp: {whatsapp_response}"
                                 )
                         else:
                             # Send text message (use translated content if available)
@@ -228,11 +224,11 @@ async def send_message(
                                 await db.commit()
 
                             logger.info(
-                                f"✅ WhatsApp message sent to {recipient.phone_number}: {whatsapp_response}"
+                                f" WhatsApp message sent to {recipient.phone_number}: {whatsapp_response}"
                             )
                     except Exception as wa_error:
                         logger.error(
-                            f"❌ Failed to send WhatsApp message to {recipient.phone_number}: {wa_error}"
+                            f" Failed to send WhatsApp message to {recipient.phone_number}: {wa_error}"
                         )
                         # Continue even if WhatsApp sending fails
         except Exception as e:
@@ -415,7 +411,7 @@ async def get_messages(
                 # Commit translation cache to database
                 await db.commit()
             except Exception as e:
-                logger.error(f"❌ Batch translation failed: {e}")
+                logger.error(f" Batch translation failed: {e}")
 
     return messages_data
 
