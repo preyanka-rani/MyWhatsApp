@@ -503,11 +503,178 @@ body {
     border-bottom-left-radius: 2px;
 }
 
+/* Media messages - WhatsApp style */
+.message-bubble.has-media {
+    padding: 0;
+    overflow: hidden;
+}
+
+.message-media {
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+
+.message-media img,
+.message-media video {
+    display: block;
+    max-width: 300px;
+    max-height: 300px;
+    width: 100%;
+    height: auto;
+    border-radius: 0;
+    cursor: pointer;
+    margin: 0;
+}
+
+.message-media audio {
+    width: 300px;
+    margin: 0.5rem;
+}
+
+.message-document {
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 250px;
+}
+
+.message-document a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: inherit;
+    flex: 1;
+}
+
+.message-document i {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+}
+
+.document-info {
+    flex: 1;
+}
+
+.document-name {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    word-break: break-word;
+}
+
+.document-size {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Message with media and caption */
+.message-bubble.has-media .message-content {
+    padding: 0.5rem 0.75rem;
+    margin: 0;
+}
+
 .message-content {
     color: var(--text-primary);
     font-size: 0.9rem;
     word-wrap: break-word;
     margin-bottom: 0.25rem;
+}
+
+/* Message action menu */
+.message-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 20px;
+    padding: 4px 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.message:hover .message-actions {
+    opacity: 1;
+}
+
+.message-action-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 4px;
+    transition: transform 0.2s;
+}
+
+.message-action-btn:hover {
+    transform: scale(1.2);
+}
+
+.message-action-btn:active {
+    transform: scale(0.95);
+}
+
+/* Message dropdown menu */
+.message-dropdown {
+    position: absolute;
+    top: 8px;
+    right: 40px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    z-index: 100;
+    min-width: 150px;
+}
+
+.message-dropdown-item {
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: background 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+}
+
+.message-dropdown-item:hover {
+    background: var(--hover-bg);
+}
+
+.message-dropdown-item i {
+    width: 20px;
+}
+
+/* Reaction and Star badges */
+.reaction-badge {
+    position: absolute;
+    bottom: -8px;
+    right: 8px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.9rem;
+    z-index: 5;
+}
+
+.star-badge {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    color: #ffd700;
+    font-size: 0.9rem;
+    z-index: 5;
+    text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
 }
 
 .message-meta {
@@ -606,6 +773,32 @@ body {
     max-height: 90vh;
     overflow-y: auto;
     animation: slideIn 0.3s ease-out;
+}
+
+/* Delete Modal Specific */
+.delete-modal {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.delete-modal .modal-content {
+    max-width: 360px;
+    overflow: visible;
+}
+
+.delete-option-btn {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+
+.delete-option-btn:hover {
+    background: var(--hover-bg);
 }
 
 .modal-header {

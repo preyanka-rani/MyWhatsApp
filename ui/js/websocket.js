@@ -89,6 +89,10 @@ class WebSocketManager {
                 }
                 break;
             
+            case 'message_deleted':
+                this.handleMessageDeleted(data);
+                break;
+            
             case 'group_created':
                 this.handleGroupCreated(data.data);
                 break;
@@ -174,6 +178,38 @@ class WebSocketManager {
     handleMessageStatus(data) {
         console.log('Message status update:', data);
         // Update message status in UI if needed
+    }
+
+    // Handle message deleted
+    handleMessageDeleted(data) {
+        console.log('Message deleted notification:', data);
+        
+        const { message_id, conversation_id, deleted_by } = data;
+        
+        // Remove from local cache
+        if (chatManager.messages[conversation_id]) {
+            const beforeCount = chatManager.messages[conversation_id].length;
+            chatManager.messages[conversation_id] = chatManager.messages[conversation_id].filter(
+                m => m.id !== message_id
+            );
+            const afterCount = chatManager.messages[conversation_id].length;
+            console.log(`Removed message from cache. Before: ${beforeCount}, After: ${afterCount}`);
+        }
+        
+        // If this is the current conversation, re-render
+        if (chatManager.currentConversationId === conversation_id) {
+            console.log('Re-rendering messages after delete');
+            chatManager.renderMessages(conversation_id);
+            
+            // Show notification if deleted by someone else
+            const currentUserId = authManager.getCurrentUser()?.id;
+            if (deleted_by !== currentUserId) {
+                showToast('A message was deleted', 'info');
+            }
+        }
+        
+        // Update conversation list
+        chatManager.loadConversations();
     }
 
     // Handle typing indicator

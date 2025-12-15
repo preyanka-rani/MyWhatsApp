@@ -238,21 +238,30 @@ class MessageService:
         Returns:
             True if successful, False otherwise
         """
+        logger.info(f"Attempting to delete message {message_id} by user {user_id}")
         message = await self.get_message(db, message_id)
 
-        if not message or message.sender_id != user_id:
-            logger.warning(f"Delete denied for message {message_id} by user {user_id}")
+        if not message:
+            logger.warning(f"Message {message_id} not found in database")
+            return False
+
+        logger.info(f"Message found. Sender: {message.sender_id}, Requester: {user_id}")
+
+        if message.sender_id != user_id:
+            logger.warning(
+                f"Delete denied for message {message_id}. User {user_id} is not the sender (sender is {message.sender_id})"
+            )
             return False
 
         if soft_delete:
             message.is_deleted = True
             message.content = None
             await db.commit()
-            logger.info(f"Message {message_id} soft deleted")
+            logger.info(f"Message {message_id} soft deleted successfully")
         else:
             await db.delete(message)
             await db.commit()
-            logger.info(f"Message {message_id} hard deleted")
+            logger.info(f"Message {message_id} hard deleted successfully")
 
         return True
 

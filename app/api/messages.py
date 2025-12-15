@@ -23,11 +23,14 @@ from app.schemas import (
 from app.api.dependencies import get_current_user
 from app.services.message_service import message_service
 from app.services.whatsapp_client import whatsapp_client
+from app.websocket.manager import connection_manager
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations", tags=["Messages"])
+# Separate router for message operations without conversation context
+messages_router = APIRouter(prefix="/messages", tags=["Messages"])
 
 
 @router.post(
@@ -441,7 +444,7 @@ async def edit_message(
     return message
 
 
-@router.delete("/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@messages_router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_message(
     message_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -450,17 +453,50 @@ async def delete_message(
     """
     Delete a message (only by sender).
 
-    Performs soft delete by default.
+    Performs soft delete by default and notifies all conversation members.
     """
+    logger.info(f"Delete request for message {message_id} by user {current_user.id}")
+
+    # Get message first to get conversation_id
+    message = await message_service.get_message(db, message_id)
+    if not message:
+        logger.warning(f"Message {message_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found",
+        )
+
+    conversation_id = message.conversation_id
+
     success = await message_service.delete_message(
         db=db, message_id=message_id, user_id=current_user.id, soft_delete=True
     )
 
     if not success:
+        logger.warning(
+            f"Delete failed for message {message_id} by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Message not found or unauthorized",
         )
+
+    logger.info(f"Message {message_id} deleted successfully")
+
+    # Notify all conversation members via WebSocket
+    try:
+        await connection_manager.broadcast_to_conversation(
+            conversation_id=str(conversation_id),
+            message={
+                "type": "message_deleted",
+                "message_id": str(message_id),
+                "conversation_id": str(conversation_id),
+                "deleted_by": str(current_user.id),
+            },
+        )
+        logger.info(f"Delete notification sent to conversation {conversation_id}")
+    except Exception as e:
+        logger.error(f"Failed to send delete notification: {e}")
 
     return None
 
