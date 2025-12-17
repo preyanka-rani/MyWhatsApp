@@ -492,7 +492,9 @@ async def delete_message(
                 "message_id": str(message_id),
                 "conversation_id": str(conversation_id),
                 "deleted_by": str(current_user.id),
+                "sender_id": str(message.sender_id),
             },
+            db=db,
         )
         logger.info(f"Delete notification sent to conversation {conversation_id}")
     except Exception as e:
