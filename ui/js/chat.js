@@ -399,6 +399,24 @@ class ChatManager {
                 lastDate = messageDate;
             }
 
+            // Handle deleted messages
+            if (msg.is_deleted) {
+                const deletedText = isSent ? 
+                    '<i class="fas fa-ban"></i> You deleted this message' : 
+                    '<i class="fas fa-ban"></i> This message was deleted';
+                return `
+                    ${dateHtml}
+                    <div class="message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.id}">
+                        <div class="message-bubble deleted-message">
+                            <div class="message-content">${deletedText}</div>
+                            <div class="message-meta">
+                                <span>${this.formatTime(msg.created_at)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
             // Generate media content if present
             let mediaContent = '';
             let hasMedia = false;
@@ -1170,11 +1188,14 @@ class ChatManager {
                         this.sentMessageIds.delete(messageId);
                     }
                     
-                    // Remove from local cache
+                    // Mark as deleted in local cache
                     if (this.messages[this.currentConversationId]) {
-                        this.messages[this.currentConversationId] = this.messages[this.currentConversationId].filter(
-                            m => m.id !== messageId
-                        );
+                        const message = this.messages[this.currentConversationId].find(m => m.id === messageId);
+                        if (message) {
+                            message.is_deleted = true;
+                            message.content = null;
+                            message.media = null;
+                        }
                     }
                     
                     // Re-render messages

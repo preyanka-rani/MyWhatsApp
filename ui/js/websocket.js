@@ -184,16 +184,18 @@ class WebSocketManager {
     handleMessageDeleted(data) {
         console.log('Message deleted notification:', data);
         
-        const { message_id, conversation_id, deleted_by } = data;
+        const { message_id, conversation_id, deleted_by, sender_id } = data;
         
-        // Remove from local cache
+        // Mark message as deleted instead of removing it
         if (chatManager.messages[conversation_id]) {
-            const beforeCount = chatManager.messages[conversation_id].length;
-            chatManager.messages[conversation_id] = chatManager.messages[conversation_id].filter(
-                m => m.id !== message_id
-            );
-            const afterCount = chatManager.messages[conversation_id].length;
-            console.log(`Removed message from cache. Before: ${beforeCount}, After: ${afterCount}`);
+            const message = chatManager.messages[conversation_id].find(m => m.id === message_id);
+            if (message) {
+                message.is_deleted = true;
+                message.content = null;
+                message.media = null;
+                message.sender_id = sender_id; // Preserve sender info
+                console.log(`Marked message ${message_id} as deleted`);
+            }
         }
         
         // If this is the current conversation, re-render

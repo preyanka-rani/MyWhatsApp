@@ -503,6 +503,25 @@ body {
     border-bottom-left-radius: 2px;
 }
 
+/* Deleted message style */
+.message-bubble.deleted-message {
+    background: transparent !important;
+    border: 1px solid var(--border-color);
+    opacity: 0.7;
+}
+
+.message-bubble.deleted-message .message-content {
+    font-style: italic;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.message-bubble.deleted-message .message-content i {
+    font-size: 0.9rem;
+}
+
 /* Media messages - WhatsApp style */
 .message-bubble.has-media {
     padding: 0;
