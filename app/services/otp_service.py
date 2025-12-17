@@ -1,7 +1,3 @@
-"""
-OTP Service for handling phone-based authentication.
-"""
-
 from typing import Optional, Dict
 from datetime import datetime, timedelta
 from twilio.rest import Client

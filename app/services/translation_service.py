@@ -1,10 +1,3 @@
-"""
-Translation Service using Lingva Translate API.
-
-Lingva is a free, open-source translation service that acts as an alternative
-front-end for Google Translate without tracking.
-"""
-
 import aiohttp
 import asyncio
 import logging

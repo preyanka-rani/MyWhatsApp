@@ -271,6 +271,15 @@ function setupEventListeners() {
         }
     });
 
+    // Close message dropdown menus when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.message-actions') && !e.target.closest('.message-dropdown')) {
+            document.querySelectorAll('.message-dropdown').forEach(menu => {
+                menu.style.display = 'none';
+            });
+        }
+    });
+
     // Mobile back button (if needed)
     if (window.innerWidth <= 768) {
         // Add back button to chat header for mobile

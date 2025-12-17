@@ -1,8 +1,3 @@
-"""
-WhatsApp Business API Client.
-Handles all interactions with WhatsApp Cloud API.
-"""
-
 import httpx
 from typing import Dict, Any, Optional
 from app.core.config import settings

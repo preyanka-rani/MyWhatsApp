@@ -127,6 +127,14 @@ class ChatManager {
             if (response.ok) {
                 const message = await response.json();
                 
+                console.log('Message sent successfully:', message.id);
+                
+                // Store sent message ID temporarily
+                if (!this.sentMessageIds) {
+                    this.sentMessageIds = new Set();
+                }
+                this.sentMessageIds.add(message.id);
+                
                 // Add message to local cache
                 if (!this.messages[conversationId]) {
                     this.messages[conversationId] = [];
@@ -391,9 +399,29 @@ class ChatManager {
                 lastDate = messageDate;
             }
 
+            // Handle deleted messages
+            if (msg.is_deleted) {
+                const deletedText = isSent ? 
+                    '<i class="fas fa-ban"></i> You deleted this message' : 
+                    '<i class="fas fa-ban"></i> This message was deleted';
+                return `
+                    ${dateHtml}
+                    <div class="message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.id}">
+                        <div class="message-bubble deleted-message">
+                            <div class="message-content">${deletedText}</div>
+                            <div class="message-meta">
+                                <span>${this.formatTime(msg.created_at)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
             // Generate media content if present
             let mediaContent = '';
+            let hasMedia = false;
             if (msg.media && msg.media.url) {
+                hasMedia = true;
                 const media = msg.media;
                 // Ensure media URLs are absolute
                 const mediaUrl = media.url.startsWith('http') ? media.url : `http://localhost:8000${media.url}`;
@@ -406,14 +434,13 @@ class ChatManager {
                         <div class="message-media">
                             <img src="${thumbnailUrl}" 
                                  alt="${media.filename}"
-                                 onclick="window.open('${mediaUrl}', '_blank')"
-                                 style="max-width: 300px; max-height: 300px; border-radius: 8px; cursor: pointer;">
+                                 onclick="window.open('${mediaUrl}', '_blank')">
                         </div>
                     `;
                 } else if (msg.type === 'VIDEO') {
                     mediaContent = `
                         <div class="message-media">
-                            <video controls style="max-width: 300px; max-height: 300px; border-radius: 8px;">
+                            <video controls>
                                 <source src="${mediaUrl}" type="${media.mime_type}">
                                 Your browser does not support video playback.
                             </video>
@@ -422,7 +449,7 @@ class ChatManager {
                 } else if (msg.type === 'AUDIO') {
                     mediaContent = `
                         <div class="message-media">
-                            <audio controls style="width: 300px;">
+                            <audio controls>
                                 <source src="${mediaUrl}" type="${media.mime_type}">
                                 Your browser does not support audio playback.
                             </audio>
@@ -431,12 +458,11 @@ class ChatManager {
                 } else if (msg.type === 'DOCUMENT') {
                     mediaContent = `
                         <div class="message-media message-document">
-                            <a href="${mediaUrl}" target="_blank" download="${media.filename}" 
-                               style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit;">
-                                <i class="fas fa-file-${this.getDocumentIcon(media.mime_type)}" style="font-size: 2rem;"></i>
-                                <div>
-                                    <div style="font-weight: 500;">${media.filename}</div>
-                                    <div style="font-size: 0.85rem; color: var(--text-muted);">${this.formatFileSize(media.size)}</div>
+                            <a href="${mediaUrl}" target="_blank" download="${media.filename}">
+                                <i class="fas fa-file-${this.getDocumentIcon(media.mime_type)}"></i>
+                                <div class="document-info">
+                                    <div class="document-name">${media.filename}</div>
+                                    <div class="document-size">${this.formatFileSize(media.size)}</div>
                                 </div>
                             </a>
                         </div>
@@ -444,17 +470,77 @@ class ChatManager {
                 }
             }
 
+            // Message action menu
+            const actionMenu = `
+                <div class="message-actions">
+                    <button class="message-action-btn" onclick="chatManager.toggleMessageMenu(event, '${msg.id}')" title="More">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
+                <div class="message-dropdown" id="menu-${msg.id}" style="display: none;">
+                    <button class="message-dropdown-item" onclick="chatManager.showMessageInfo('${msg.id}')">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Message info</span>
+                    </button>
+                    <button class="message-dropdown-item" onclick="chatManager.replyToMessage('${msg.id}')">
+                        <i class="fas fa-reply"></i>
+                        <span>Reply</span>
+                    </button>
+                    ${msg.content ? `
+                        <button class="message-dropdown-item" onclick="chatManager.copyMessage('${msg.id}')">
+                            <i class="fas fa-copy"></i>
+                            <span>Copy</span>
+                        </button>
+                    ` : ''}
+                    <button class="message-dropdown-item" onclick="chatManager.reactToMessage('${msg.id}')">
+                        <i class="fas fa-face-smile"></i>
+                        <span>React</span>
+                    </button>
+                    ${msg.media ? `
+                        <button class="message-dropdown-item" onclick="chatManager.downloadMedia('${msg.media.url}', '${msg.media.filename}')">
+                            <i class="fas fa-download"></i>
+                            <span>Download</span>
+                        </button>
+                    ` : ''}
+                    <button class="message-dropdown-item" onclick="chatManager.forwardMessage('${msg.id}')">
+                        <i class="fas fa-share"></i>
+                        <span>Forward</span>
+                    </button>
+                    <button class="message-dropdown-item" onclick="chatManager.pinMessage('${msg.id}')">
+                        <i class="fas fa-thumbtack"></i>
+                        <span>Pin</span>
+                    </button>
+                    <button class="message-dropdown-item" onclick="chatManager.starMessage('${msg.id}')">
+                        <i class="fas fa-star"></i>
+                        <span>Star</span>
+                    </button>
+                    <button class="message-dropdown-item" onclick="chatManager.deleteMessage('${msg.id}')">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete</span>
+                    </button>
+                </div>
+            `;
+
             return `
                 ${dateHtml}
-                <div class="message ${isSent ? 'sent' : 'received'}">
-                    <div class="message-bubble">
+                <div class="message ${isSent ? 'sent' : 'received'}" data-message-id="${msg.id}">
+                    <div class="message-bubble ${hasMedia ? 'has-media' : ''}">
                         ${mediaContent}
                         ${msg.content ? `<div class="message-content">${this.escapeHtml(msg.content)}</div>` : ''}
-                        <div class="message-meta">
-                            <span>${this.formatTime(msg.created_at)}</span>
-                            ${isSent ? '<i class="fas fa-check-double message-status"></i>' : ''}
-                        </div>
+                        ${!hasMedia || msg.content ? `
+                            <div class="message-meta">
+                                <span>${this.formatTime(msg.created_at)}</span>
+                                ${isSent ? '<i class="fas fa-check-double message-status"></i>' : ''}
+                            </div>
+                        ` : ''}
+                        ${actionMenu}
                     </div>
+                    ${hasMedia && !msg.content ? `
+                        <div style="padding: 0.25rem 0.5rem; font-size: 0.7rem; color: var(--text-muted); text-align: right;">
+                            <span>${this.formatTime(msg.created_at)}</span>
+                            ${isSent ? '<i class="fas fa-check-double" style="color: #53bdeb; margin-left: 0.25rem;"></i>' : ''}
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }).join('');
@@ -537,6 +623,653 @@ class ChatManager {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Toggle message dropdown menu
+    toggleMessageMenu(event, messageId) {
+        event.stopPropagation();
+        
+        // Close all other menus
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            if (menu.id !== `menu-${messageId}`) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        // Toggle current menu
+        const menu = document.getElementById(`menu-${messageId}`);
+        if (menu) {
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+    }
+
+    // Show message info
+    showMessageInfo(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        const messages = this.messages[this.currentConversationId] || [];
+        const message = messages.find(m => m.id === messageId);
+        
+        if (!message) {
+            showToast('Message not found', 'error');
+            return;
+        }
+        
+        const currentUserId = authManager.getCurrentUser()?.id;
+        const isSent = message.sender_id === currentUserId;
+        
+        const modalHtml = `
+            <div class="modal" id="messageInfoModal" style="display: flex;">
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h2>Message Info</h2>
+                        <button class="close-btn" onclick="document.getElementById('messageInfoModal').remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom: 1.5rem;">
+                            <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 8px;">
+                                ${message.content ? `<p style="color: var(--text-primary); margin-bottom: 0.5rem;">${this.escapeHtml(message.content)}</p>` : ''}
+                                ${message.type !== 'TEXT' ? `<p style="color: var(--text-secondary); font-size: 0.85rem;"><i class="fas fa-paperclip"></i> ${message.type}</p>` : ''}
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.25rem;">Type</div>
+                                <div style="color: var(--text-primary);">${message.type}</div>
+                            </div>
+                            <div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.25rem;">Status</div>
+                                <div style="color: var(--text-primary);">${isSent ? 'Sent' : 'Received'}</div>
+                            </div>
+                            <div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.25rem;">Sent At</div>
+                                <div style="color: var(--text-primary);">${new Date(message.created_at).toLocaleString()}</div>
+                            </div>
+                            ${message.media ? `
+                                <div>
+                                    <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.25rem;">Media</div>
+                                    <div style="color: var(--text-primary);">
+                                        ${message.media.filename}<br>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem;">${this.formatFileSize(message.media.size)}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    // Copy message text
+    copyMessage(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        const messages = this.messages[this.currentConversationId] || [];
+        const message = messages.find(m => m.id === messageId);
+        
+        if (!message || !message.content) {
+            showToast('No text to copy', 'error');
+            return;
+        }
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(message.content).then(() => {
+            showToast('Message copied', 'success');
+        }).catch(err => {
+            console.error('Copy failed:', err);
+            showToast('Failed to copy', 'error');
+        });
+    }
+
+    // React to message
+    reactToMessage(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        const reactions = ['❤️', '😂', '😮', '😢', '🙏', '👍'];
+        
+        const modalHtml = `
+            <div class="modal" id="reactModal" style="display: flex;" onclick="if(event.target.id === 'reactModal') document.getElementById('reactModal').remove()">
+                <div class="modal-content" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h2>React to message</h2>
+                        <button class="close-btn" onclick="document.getElementById('reactModal').remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                            ${reactions.map(emoji => `
+                                <button onclick="chatManager.addReaction('${messageId}', '${emoji}')" 
+                                        style="font-size: 2rem; background: none; border: none; cursor: pointer; padding: 0.5rem; transition: transform 0.2s;"
+                                        onmouseover="this.style.transform='scale(1.3)'"
+                                        onmouseout="this.style.transform='scale(1)'">
+                                    ${emoji}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    // Add reaction
+    addReaction(messageId, emoji) {
+        // Close modal
+        document.getElementById('reactModal')?.remove();
+        
+        // Find message element and add reaction badge
+        const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageEl) {
+            let reactionBadge = messageEl.querySelector('.reaction-badge');
+            if (!reactionBadge) {
+                reactionBadge = document.createElement('div');
+                reactionBadge.className = 'reaction-badge';
+                reactionBadge.style.cssText = 'position: absolute; bottom: -8px; right: 8px; background: var(--bg-secondary); border: 2px solid var(--border-color); border-radius: 12px; padding: 2px 8px; font-size: 0.9rem;';
+                messageEl.querySelector('.message-bubble').appendChild(reactionBadge);
+            }
+            reactionBadge.textContent = emoji;
+        }
+        
+        showToast('Reaction added', 'success');
+    }
+
+    // Forward message
+    forwardMessage(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        const messages = this.messages[this.currentConversationId] || [];
+        const message = messages.find(m => m.id === messageId);
+        
+        if (!message) {
+            showToast('Message not found', 'error');
+            return;
+        }
+        
+        // Create forward modal with conversation list
+        const modalHtml = `
+            <div class="modal" id="forwardModal" style="display: flex;" onclick="if(event.target.id === 'forwardModal') document.getElementById('forwardModal').remove()">
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h2>Forward to...</h2>
+                        <button class="close-btn" onclick="document.getElementById('forwardModal').remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            ${this.conversations.filter(c => c.id !== this.currentConversationId).map(conv => `
+                                <div onclick="chatManager.executeForward('${messageId}', '${conv.id}')" 
+                                     style="padding: 1rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; border-radius: 8px; transition: background 0.2s;"
+                                     onmouseover="this.style.background='var(--hover-bg)'"
+                                     onmouseout="this.style.background='transparent'">
+                                    <div class="avatar" style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas ${conv.type === 'GROUP' ? 'fa-users' : 'fa-user'}"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <div style="color: var(--text-primary); font-weight: 500;">${this.escapeHtml(conv.name || 'Chat')}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    // Execute forward
+    async executeForward(messageId, targetConversationId) {
+        document.getElementById('forwardModal')?.remove();
+        
+        const messages = this.messages[this.currentConversationId] || [];
+        const message = messages.find(m => m.id === messageId);
+        
+        if (!message) {
+            showToast('Message not found', 'error');
+            return;
+        }
+        
+        try {
+            showLoading();
+            
+            // Forward the message
+            let result;
+            if (message.media) {
+                result = await this.sendMessage(targetConversationId, message.content || '', message.type, message.media.id);
+            } else {
+                result = await this.sendMessage(targetConversationId, message.content, 'TEXT');
+            }
+            
+            hideLoading();
+            
+            if (result) {
+                showToast('Message forwarded', 'success');
+            } else {
+                showToast('Failed to forward message', 'error');
+            }
+        } catch (error) {
+            hideLoading();
+            console.error('Forward error:', error);
+            showToast('Failed to forward message', 'error');
+        }
+    }
+
+    // Star message
+    starMessage(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        // Find message element and toggle star
+        const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageEl) {
+            let starBadge = messageEl.querySelector('.star-badge');
+            if (!starBadge) {
+                // Add star
+                starBadge = document.createElement('div');
+                starBadge.className = 'star-badge';
+                starBadge.style.cssText = 'position: absolute; top: 4px; left: 4px; color: #ffd700; font-size: 0.9rem; z-index: 5;';
+                starBadge.innerHTML = '<i class="fas fa-star"></i>';
+                messageEl.querySelector('.message-bubble').appendChild(starBadge);
+                
+                // Store starred message
+                if (!this.starredMessages) this.starredMessages = [];
+                this.starredMessages.push(messageId);
+                
+                showToast('Message starred', 'success');
+            } else {
+                // Remove star
+                starBadge.remove();
+                
+                // Remove from starred messages
+                if (this.starredMessages) {
+                    this.starredMessages = this.starredMessages.filter(id => id !== messageId);
+                }
+                
+                showToast('Star removed', 'success');
+            }
+        }
+    }
+
+    // Download media
+    async downloadMedia(url, filename) {
+        try {
+            // Close dropdown menu
+            document.querySelectorAll('.message-dropdown').forEach(menu => {
+                menu.style.display = 'none';
+            });
+            
+            // Ensure URL is absolute
+            const mediaUrl = url.startsWith('http') ? url : `http://localhost:8000${url}`;
+            
+            // Download using fetch and blob
+            const response = await fetch(mediaUrl);
+            if (!response.ok) throw new Error('Download failed');
+            
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Clean up
+            window.URL.revokeObjectURL(blobUrl);
+            
+            showToast('Download started', 'success');
+        } catch (error) {
+            console.error('Download error:', error);
+            showToast('Download failed', 'error');
+        }
+    }
+
+    // Reply to message
+    replyToMessage(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        // Find the message
+        const messages = this.messages[this.currentConversationId] || [];
+        const message = messages.find(m => m.id === messageId);
+        
+        if (!message) {
+            showToast('Message not found', 'error');
+            return;
+        }
+        
+        // Show reply preview in input area
+        const inputArea = document.querySelector('.message-input-area');
+        let replyPreview = inputArea.querySelector('.reply-preview');
+        
+        if (!replyPreview) {
+            replyPreview = document.createElement('div');
+            replyPreview.className = 'reply-preview';
+            inputArea.insertBefore(replyPreview, inputArea.firstChild);
+        }
+        
+        const previewText = message.content ? 
+            this.truncateText(message.content, 50) : 
+            (message.type || 'Media');
+        
+        replyPreview.innerHTML = `
+            <div style="background: var(--bg-tertiary); padding: 0.5rem 0.75rem; border-left: 3px solid var(--primary-color); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--primary-color); font-weight: 600;">Replying to</div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary);">${previewText}</div>
+                </div>
+                <button onclick="chatManager.cancelReply()" style="background: none; border: none; color: var(--text-secondary); cursor: pointer;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // Store reply context
+        this.replyingTo = messageId;
+        
+        // Focus input
+        document.getElementById('messageInput').focus();
+        
+        showToast('Reply mode activated', 'info');
+    }
+
+    // Cancel reply
+    cancelReply() {
+        const replyPreview = document.querySelector('.reply-preview');
+        if (replyPreview) {
+            replyPreview.remove();
+        }
+        this.replyingTo = null;
+    }
+
+    // Pin message
+    async pinMessage(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        try {
+            // Find the message
+            const messages = this.messages[this.currentConversationId] || [];
+            const message = messages.find(m => m.id === messageId);
+            
+            if (!message) {
+                showToast('Message not found', 'error');
+                return;
+            }
+            
+            // Show pinned message banner
+            const chatHeader = document.querySelector('.chat-header');
+            let pinnedBanner = document.querySelector('.pinned-message-banner');
+            
+            if (!pinnedBanner) {
+                pinnedBanner = document.createElement('div');
+                pinnedBanner.className = 'pinned-message-banner';
+                chatHeader.parentNode.insertBefore(pinnedBanner, chatHeader.nextSibling);
+            }
+            
+            const previewText = message.content ? 
+                this.truncateText(message.content, 50) : 
+                (message.type || 'Media');
+            
+            pinnedBanner.innerHTML = `
+                <div style="background: var(--bg-tertiary); padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color);">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <i class="fas fa-thumbtack" style="color: var(--primary-color);"></i>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Pinned Message</div>
+                            <div style="font-size: 0.9rem; color: var(--text-primary);">${previewText}</div>
+                        </div>
+                    </div>
+                    <button onclick="chatManager.unpinMessage()" style="background: none; border: none; color: var(--text-secondary); cursor: pointer;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            // Store pinned message ID
+            this.pinnedMessageId = messageId;
+            
+            showToast('Message pinned', 'success');
+        } catch (error) {
+            console.error('Pin error:', error);
+            showToast('Failed to pin message', 'error');
+        }
+    }
+
+    // Unpin message
+    unpinMessage() {
+        const pinnedBanner = document.querySelector('.pinned-message-banner');
+        if (pinnedBanner) {
+            pinnedBanner.remove();
+        }
+        this.pinnedMessageId = null;
+        showToast('Message unpinned', 'success');
+    }
+
+    // Delete message
+    deleteMessage(messageId) {
+        // Close dropdown menu
+        document.querySelectorAll('.message-dropdown').forEach(menu => {
+            menu.style.display = 'none';
+        });
+        
+        // Check if user is the sender
+        const messages = this.messages[this.currentConversationId] || [];
+        const message = messages.find(m => m.id === messageId);
+        
+        if (!message) {
+            console.error('Message not found in local cache:', messageId);
+            showToast('Message not found', 'error');
+            return;
+        }
+        
+        const currentUserId = authManager.getCurrentUser()?.id;
+        const isSender = message && message.sender_id === currentUserId;
+        
+        console.log('Delete check:', {
+            messageId,
+            currentUserId,
+            messageSenderId: message.sender_id,
+            isSender
+        });
+        
+        // Show WhatsApp-style delete modal
+        const modalHtml = `
+            <div class="modal delete-modal" id="deleteModal" style="display: flex; background: rgba(0, 0, 0, 0.8);">
+                <div class="modal-content" style="max-width: 400px; background: var(--bg-secondary); border-radius: 8px; overflow: visible;">
+                    <div style="padding: 1.5rem 1.5rem 1rem;">
+                        <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 0.5rem;">Delete message?</h3>
+                    </div>
+                    <div style="display: flex; flex-direction: column;">
+                        ${isSender ? `
+                            <button onclick="chatManager.executeDelete('${messageId}', 'everyone')" 
+                                    class="delete-option-btn"
+                                    style="padding: 1rem 1.5rem; text-align: left; background: none; border: none; color: var(--text-primary); cursor: pointer; transition: background 0.2s; font-size: 0.95rem;"
+                                    onmouseover="this.style.background='var(--hover-bg)'"
+                                    onmouseout="this.style.background='none'">
+                                Delete for everyone
+                            </button>
+                        ` : ''}
+                        <button onclick="chatManager.executeDelete('${messageId}', 'me')" 
+                                class="delete-option-btn"
+                                style="padding: 1rem 1.5rem; text-align: left; background: none; border: none; color: var(--text-primary); cursor: pointer; transition: background 0.2s; font-size: 0.95rem;"
+                                onmouseover="this.style.background='var(--hover-bg)'"
+                                onmouseout="this.style.background='none'">
+                            Delete for me
+                        </button>
+                        <button onclick="document.getElementById('deleteModal').remove()" 
+                                class="delete-option-btn"
+                                style="padding: 1rem 1.5rem; text-align: left; background: none; border: none; color: var(--primary-color); cursor: pointer; transition: background 0.2s; font-size: 0.95rem; border-top: 1px solid var(--border-color); margin-top: 0.5rem;"
+                                onmouseover="this.style.background='var(--hover-bg)'"
+                                onmouseout="this.style.background='none'">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Close on outside click
+        setTimeout(() => {
+            document.getElementById('deleteModal')?.addEventListener('click', (e) => {
+                if (e.target.id === 'deleteModal') {
+                    document.getElementById('deleteModal').remove();
+                }
+            });
+        }, 100);
+    }
+
+    // Execute delete
+    async executeDelete(messageId, deleteType) {
+        // Close modal
+        document.getElementById('deleteModal')?.remove();
+        
+        console.log('Deleting message:', messageId, 'Type:', deleteType);
+        
+        try {
+            showLoading();
+            
+            if (deleteType === 'everyone') {
+                // Check if this is a recently sent message
+                const isRecentlySent = this.sentMessageIds && this.sentMessageIds.has(messageId);
+                
+                if (isRecentlySent) {
+                    console.log('Recently sent message detected, waiting for DB sync...');
+                    // Wait a bit for database to sync
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                // Delete for everyone (backend deletion)
+                const url = `/messages/${messageId}`;
+                console.log('DELETE request to:', url);
+                
+                const response = await authManager.authenticatedRequest(url, {
+                    method: 'DELETE'
+                });
+                
+                console.log('DELETE response status:', response.status);
+                
+                hideLoading();
+                
+                if (response.ok || response.status === 204) {
+                    // Remove from sentMessageIds
+                    if (this.sentMessageIds) {
+                        this.sentMessageIds.delete(messageId);
+                    }
+                    
+                    // Mark as deleted in local cache
+                    if (this.messages[this.currentConversationId]) {
+                        const message = this.messages[this.currentConversationId].find(m => m.id === messageId);
+                        if (message) {
+                            message.is_deleted = true;
+                            message.content = null;
+                            message.media = null;
+                        }
+                    }
+                    
+                    // Re-render messages
+                    this.renderMessages(this.currentConversationId);
+                    
+                    showToast('Message deleted for everyone', 'success');
+                } else if (response.status === 404 && isRecentlySent) {
+                    // Message might not be in DB yet - try once more after a delay
+                    console.log('Message not found (recently sent), retrying after 1.5 seconds...');
+                    showLoading();
+                    
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    const retryResponse = await authManager.authenticatedRequest(url, {
+                        method: 'DELETE'
+                    });
+                    
+                    console.log('Retry DELETE response status:', retryResponse.status);
+                    hideLoading();
+                    
+                    if (retryResponse.ok || retryResponse.status === 204) {
+                        // Remove from sentMessageIds
+                        if (this.sentMessageIds) {
+                            this.sentMessageIds.delete(messageId);
+                        }
+                        
+                        // Remove from local cache
+                        if (this.messages[this.currentConversationId]) {
+                            this.messages[this.currentConversationId] = this.messages[this.currentConversationId].filter(
+                                m => m.id !== messageId
+                            );
+                        }
+                        
+                        // Re-render messages
+                        this.renderMessages(this.currentConversationId);
+                        
+                        showToast('Message deleted for everyone', 'success');
+                    } else {
+                        const errorText = await retryResponse.text();
+                        console.error('DELETE retry error:', errorText);
+                        showToast('Message not found in database. Please try again in a moment.', 'warning');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    console.error('DELETE error response:', errorText);
+                    let error;
+                    try {
+                        error = JSON.parse(errorText);
+                    } catch {
+                        error = { detail: 'Failed to delete message' };
+                    }
+                    showToast(error.detail || 'Failed to delete message', 'error');
+                }
+            } else {
+                // Delete for me only (local deletion)
+                hideLoading();
+                
+                // Remove from local cache only
+                if (this.messages[this.currentConversationId]) {
+                    this.messages[this.currentConversationId] = this.messages[this.currentConversationId].filter(
+                        m => m.id !== messageId
+                    );
+                }
+                
+                // Re-render messages
+                this.renderMessages(this.currentConversationId);
+                
+                showToast('Message deleted for you', 'success');
+            }
+        } catch (error) {
+            hideLoading();
+            console.error('Delete error:', error);
+            showToast('Failed to delete message', 'error');
+        }
     }
 
     // Cleanup

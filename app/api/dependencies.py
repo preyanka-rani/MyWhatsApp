@@ -1,7 +1,3 @@
-"""
-Dependency functions for FastAPI routes.
-"""
-
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession

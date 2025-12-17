@@ -1,7 +1,3 @@
-"""
-Group Service for managing groups and group memberships.
-"""
-
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_

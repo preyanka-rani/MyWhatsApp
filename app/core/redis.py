@@ -1,7 +1,3 @@
-"""
-Redis connection management and pub/sub utilities.
-"""
-
 import redis.asyncio as aioredis
 from typing import Optional
 from app.core.config import settings
@@ -26,10 +22,10 @@ class RedisManager:
             self.pubsub = self.redis_client.pubsub()
             # Test connection
             await self.redis_client.ping()
-            print("✅ Redis connected successfully")
+            print(" Redis connected successfully")
         except Exception as e:
-            print(f"⚠️  Redis not available: {e}")
-            print("📝 App will run without Redis features (pub/sub disabled)")
+            print(f"  Redis not available: {e}")
+            print(" App will run without Redis features (pub/sub disabled)")
             self.redis_client = None
             self.pubsub = None
 

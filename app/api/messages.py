@@ -1,7 +1,3 @@
-"""
-Messages API endpoints.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -27,11 +23,14 @@ from app.schemas import (
 from app.api.dependencies import get_current_user
 from app.services.message_service import message_service
 from app.services.whatsapp_client import whatsapp_client
+from app.websocket.manager import connection_manager
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations", tags=["Messages"])
+# Separate router for message operations without conversation context
+messages_router = APIRouter(prefix="/messages", tags=["Messages"])
 
 
 @router.post(
@@ -175,7 +174,7 @@ async def send_message(
                                 )
 
                                 logger.info(
-                                    f"📸 Sending {whatsapp_media_type} to {recipient.phone_number}"
+                                    f"Sending {whatsapp_media_type} to {recipient.phone_number}"
                                 )
 
                                 # Convert relative URL to absolute public URL for WhatsApp
@@ -211,7 +210,7 @@ async def send_message(
                                     await db.commit()
 
                                 logger.info(
-                                    f"✅ Media sent via WhatsApp: {whatsapp_response}"
+                                    f" Media sent via WhatsApp: {whatsapp_response}"
                                 )
                         else:
                             # Send text message (use translated content if available)
@@ -228,11 +227,11 @@ async def send_message(
                                 await db.commit()
 
                             logger.info(
-                                f"✅ WhatsApp message sent to {recipient.phone_number}: {whatsapp_response}"
+                                f" WhatsApp message sent to {recipient.phone_number}: {whatsapp_response}"
                             )
                     except Exception as wa_error:
                         logger.error(
-                            f"❌ Failed to send WhatsApp message to {recipient.phone_number}: {wa_error}"
+                            f" Failed to send WhatsApp message to {recipient.phone_number}: {wa_error}"
                         )
                         # Continue even if WhatsApp sending fails
         except Exception as e:
@@ -415,7 +414,7 @@ async def get_messages(
                 # Commit translation cache to database
                 await db.commit()
             except Exception as e:
-                logger.error(f"❌ Batch translation failed: {e}")
+                logger.error(f" Batch translation failed: {e}")
 
     return messages_data
 
@@ -445,7 +444,7 @@ async def edit_message(
     return message
 
 
-@router.delete("/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@messages_router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_message(
     message_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -454,17 +453,52 @@ async def delete_message(
     """
     Delete a message (only by sender).
 
-    Performs soft delete by default.
+    Performs soft delete by default and notifies all conversation members.
     """
+    logger.info(f"Delete request for message {message_id} by user {current_user.id}")
+
+    # Get message first to get conversation_id
+    message = await message_service.get_message(db, message_id)
+    if not message:
+        logger.warning(f"Message {message_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found",
+        )
+
+    conversation_id = message.conversation_id
+
     success = await message_service.delete_message(
         db=db, message_id=message_id, user_id=current_user.id, soft_delete=True
     )
 
     if not success:
+        logger.warning(
+            f"Delete failed for message {message_id} by user {current_user.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Message not found or unauthorized",
         )
+
+    logger.info(f"Message {message_id} deleted successfully")
+
+    # Notify all conversation members via WebSocket
+    try:
+        await connection_manager.broadcast_to_conversation(
+            conversation_id=str(conversation_id),
+            message={
+                "type": "message_deleted",
+                "message_id": str(message_id),
+                "conversation_id": str(conversation_id),
+                "deleted_by": str(current_user.id),
+                "sender_id": str(message.sender_id),
+            },
+            db=db,
+        )
+        logger.info(f"Delete notification sent to conversation {conversation_id}")
+    except Exception as e:
+        logger.error(f"Failed to send delete notification: {e}")
 
     return None
 

@@ -1,22 +1,25 @@
-"""
-Database session management and configuration.
-Provides async database engine and session factory.
-"""
-
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
 
-# Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_pre_ping=True,
-)
+# Create async engine - only use pool settings for non-SQLite databases
+engine_kwargs = {
+    "echo": settings.DEBUG,
+}
+
+# Add pool settings only for PostgreSQL/MySQL
+if not settings.DATABASE_URL.startswith("sqlite"):
+    engine_kwargs.update(
+        {
+            "pool_size": settings.DATABASE_POOL_SIZE,
+            "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+            "pool_pre_ping": True,
+        }
+    )
+
+engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(

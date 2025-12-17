@@ -1,7 +1,3 @@
-"""
-Conversation and conversation member models.
-"""
-
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, ForeignKey, Enum as SQLEnum, Boolean
 from sqlalchemy.dialects.postgresql import UUID

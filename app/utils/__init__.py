@@ -1,5 +1,3 @@
-"""Utility functions."""
-
 import logging
 import structlog
 

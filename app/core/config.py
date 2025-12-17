@@ -1,8 +1,3 @@
-"""
-Core configuration module using Pydantic Settings.
-Loads all environment variables and provides type-safe access.
-"""
-
 from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field

@@ -1,7 +1,3 @@
-"""
-Media model for handling file uploads.
-"""
-
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID

@@ -1,7 +1,3 @@
-"""
-User model representing application users.
-"""
-
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID
