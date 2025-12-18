@@ -14,7 +14,7 @@ class WhatsAppAPIClient:
     from the WhatsApp Business API.
     """
 
-    BASE_URL = "https://graph.facebook.com/v18.0"
+    BASE_URL = "https://graph.facebook.com/v24.0"
 
     def __init__(self):
         """Initialize WhatsApp API client with credentials from settings."""
@@ -181,6 +181,44 @@ class WhatsAppAPIClient:
                 return media_response.content
         except httpx.HTTPError as e:
             logger.error(f"Failed to download media: {e}")
+            raise
+
+    async def delete_message(self, whatsapp_message_id: str) -> Dict[str, Any]:
+        """
+        Delete a WhatsApp message (delete for everyone).
+
+        Args:
+            whatsapp_message_id: WhatsApp message ID to delete
+
+        Returns:
+            API response confirming deletion
+
+        Raises:
+            httpx.HTTPError: If deletion fails
+        """
+        # Correct endpoint: DELETE /{phone_number_id}/messages/{message_id}
+        url = f"{self.BASE_URL}/{self.phone_number_id}/messages/{whatsapp_message_id}"
+
+        # Only Authorization header needed for DELETE
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                # Use DELETE HTTP method
+                response = await client.delete(url, headers=headers)
+                response.raise_for_status()
+                result = response.json()
+                logger.info(
+                    f"Message {whatsapp_message_id} deleted successfully: {result}"
+                )
+                return result
+        except httpx.HTTPError as e:
+            logger.error(f"Failed to delete message {whatsapp_message_id}: {e}")
+            if hasattr(e, "response") and e.response is not None:
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
             raise
 
     def parse_webhook_event(
