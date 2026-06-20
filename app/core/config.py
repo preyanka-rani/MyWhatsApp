@@ -1,8 +1,3 @@
-"""
-Core configuration module using Pydantic Settings.
-Loads all environment variables and provides type-safe access.
-"""
-
 from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field
@@ -18,6 +13,9 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: str = Field(..., description="WhatsApp phone number ID")
     WHATSAPP_BUSINESS_ACCOUNT_ID: str = Field(
         ..., description="WhatsApp business account ID"
+    )
+    WHATSAPP_BUSINESS_PHONE: str = Field(
+        default="+8801608529761", description="WhatsApp business phone number"
     )
     VERIFY_TOKEN: str = Field(..., description="Webhook verification token")
 
@@ -57,6 +55,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = Field(default="1.0.0", description="Application version")
     DEBUG: bool = Field(default=False, description="Debug mode")
     ALLOWED_ORIGINS: str = Field(default="*", description="CORS allowed origins")
+    PUBLIC_BASE_URL: str = Field(
+        default="http://localhost:8000",
+        description="Public base URL for media access (use ngrok URL for WhatsApp)",
+    )
 
     # Media Configuration
     MAX_UPLOAD_SIZE: int = Field(

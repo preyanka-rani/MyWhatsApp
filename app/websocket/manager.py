@@ -1,7 +1,3 @@
-"""
-WebSocket connection manager for real-time communication.
-"""
-
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict, Set, Optional
 import uuid
@@ -127,6 +123,84 @@ class ConnectionManager:
         channel = f"conversation:{conversation_id}"
         await redis_manager.publish(channel, json.dumps(message))
 
+    async def broadcast_to_conversation(
+        self,
+        conversation_id: str,
+        message: dict,
+        exclude_user_id: Optional[uuid.UUID] = None,
+        db=None,
+    ):
+        """
+        Broadcast message to all active connections in a conversation.
+
+        Args:
+            conversation_id: Conversation ID (string)
+            message: Message data to send
+            exclude_user_id: Optional user ID to exclude (e.g., sender)
+            db: Database session (optional, will query conversation members if provided)
+        """
+        message_json = json.dumps(message)
+
+        # If we have db access, get actual conversation members
+        if db:
+            from app.models import ConversationMember
+            from sqlalchemy import select
+
+            try:
+                conv_uuid = uuid.UUID(conversation_id)
+                stmt = select(ConversationMember.user_id).where(
+                    ConversationMember.conversation_id == conv_uuid
+                )
+                result = await db.execute(stmt)
+                member_ids = [row[0] for row in result.fetchall()]
+
+                logger.info(
+                    f"Broadcasting to conversation {conversation_id} members: {member_ids}"
+                )
+
+                # Send to conversation members only
+                for user_id in member_ids:
+                    if exclude_user_id and user_id == exclude_user_id:
+                        continue
+
+                    if user_id in self.active_connections:
+                        connections = self.active_connections[user_id].copy()
+                        for connection in connections:
+                            try:
+                                await connection.send_text(message_json)
+                                logger.info(f"Broadcasted to user {user_id}")
+                            except Exception as e:
+                                logger.error(
+                                    f"Error broadcasting to user {user_id}: {e}"
+                                )
+                                self.active_connections[user_id].discard(connection)
+                    else:
+                        logger.info(f"User {user_id} not connected")
+
+            except Exception as e:
+                logger.error(f"Error getting conversation members: {e}")
+                # Fall back to broadcasting to all
+                await self._broadcast_to_all(message_json, exclude_user_id)
+        else:
+            # No db access - broadcast to all (fallback)
+            logger.warning("No db session provided, broadcasting to all users")
+            await self._broadcast_to_all(message_json, exclude_user_id)
+
+    async def _broadcast_to_all(
+        self, message_json: str, exclude_user_id: Optional[uuid.UUID] = None
+    ):
+        """Helper method to broadcast to all connected users"""
+        for user_id, connections in self.active_connections.items():
+            if exclude_user_id and user_id == exclude_user_id:
+                continue
+
+            for connection in connections.copy():
+                try:
+                    await connection.send_text(message_json)
+                except Exception as e:
+                    logger.error(f"Error broadcasting to user {user_id}: {e}")
+                    connections.discard(connection)
+
     async def handle_typing_indicator(
         self, user_id: uuid.UUID, conversation_id: uuid.UUID, is_typing: bool
     ):
@@ -141,6 +215,29 @@ class ConnectionManager:
         await notification_service.notify_typing_indicator(
             conversation_id=conversation_id, user_id=user_id, is_typing=is_typing
         )
+
+    async def send_to_user(self, user_id: uuid.UUID, message: dict):
+        """
+        Send a message to a specific user across all their connections.
+
+        Args:
+            user_id: User ID to send message to
+            message: Message data to send
+        """
+        if user_id not in self.active_connections:
+            logger.debug(f"User {user_id} is not connected")
+            return
+
+        message_json = json.dumps(message)
+        connections = self.active_connections[user_id].copy()
+
+        for connection in connections:
+            try:
+                await connection.send_text(message_json)
+                logger.debug(f"Message sent to user {user_id}")
+            except Exception as e:
+                logger.error(f"Error sending to user {user_id}: {e}")
+                self.active_connections[user_id].discard(connection)
 
     async def listen_to_redis(self, user_id: uuid.UUID, websocket: WebSocket):
         """

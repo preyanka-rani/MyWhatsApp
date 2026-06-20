@@ -1,7 +1,3 @@
-"""
-User model representing application users.
-"""
-
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -33,6 +29,9 @@ class User(Base):
     name = Column(String(100), nullable=False)
     profile_picture_url = Column(String(500), nullable=True)
     about = Column(String(255), nullable=True, default="Hey there! I'm using WhatsApp")
+    preferred_language = Column(
+        String(10), nullable=True, default="en"
+    )  # ISO language code
     is_online = Column(Boolean, default=False)
     last_seen = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -58,6 +57,7 @@ class User(Base):
             "name": self.name,
             "profile_picture_url": self.profile_picture_url,
             "about": self.about,
+            "preferred_language": self.preferred_language,
             "is_online": self.is_online,
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
             "created_at": self.created_at.isoformat(),

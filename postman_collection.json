@@ -1,16 +1,103 @@
 {
   "info": {
-    "name": "WhatsApp Clone API",
-    "description": "Complete WhatsApp-like messaging API",
+    "name": "WhatsApp Clone API - Complete",
+    "description": "Complete WhatsApp Backend API with Auto-Authorization",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "phone_number",
+      "value": "+8801608529761",
+      "type": "string"
+    },
+    {
+      "key": "target_phone",
+      "value": "+8801755396905",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "message_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "otp_code",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "target_user_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
   "item": [
     {
-      "name": "Authentication",
+      "name": "0. Health Check",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "1. Authentication",
       "item": [
         {
-          "name": "Request OTP",
+          "name": "1.1 Request OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.otp) {",
+                  "        pm.collectionVariables.set('otp_code', jsonData.otp);",
+                  "        console.log('✅ OTP saved: ' + jsonData.otp);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
               {
@@ -20,18 +107,38 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone_number\": \"+1234567890\"\n}"
+              "raw": "{\n  \"phone_number\": \"{{phone_number}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/auth/request-otp",
               "host": ["{{base_url}}"],
               "path": ["api", "auth", "request-otp"]
-            }
+            },
+            "description": "Request OTP for your phone number. OTP will be auto-saved."
           }
         },
         {
-          "name": "Verify OTP",
+          "name": "1.2 Verify OTP & Get Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('auth_token', jsonData.access_token);",
+                  "    console.log('✅ Auth token saved!');",
+                  "    console.log('User ID: ' + jsonData.user.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
               {
@@ -41,41 +148,34 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone_number\": \"+1234567890\",\n  \"otp_code\": \"123456\"\n}"
+              "raw": "{\n  \"phone_number\": \"{{phone_number}}\",\n  \"otp_code\": \"{{otp_code}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/auth/verify-otp",
               "host": ["{{base_url}}"],
               "path": ["api", "auth", "verify-otp"]
-            }
+            },
+            "description": "Verify OTP and get JWT token. Token will be auto-saved and used for all subsequent requests."
           }
         },
         {
-          "name": "Get Current User",
+          "name": "1.3 Get My Profile",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/api/auth/users/me",
               "host": ["{{base_url}}"],
               "path": ["api", "auth", "users", "me"]
-            }
+            },
+            "description": "Get current user profile (requires auth token)"
           }
         },
         {
-          "name": "Update User Profile",
+          "name": "1.4 Update My Profile",
           "request": {
             "method": "PUT",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -83,29 +183,76 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"John Doe\",\n  \"about\": \"Hey there! I'm using WhatsApp Clone\"\n}"
+              "raw": "{\n  \"name\": \"Priyanka Rani\",\n  \"about\": \"Hey there! I am using WhatsApp 👋\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/auth/users/me",
               "host": ["{{base_url}}"],
               "path": ["api", "auth", "users", "me"]
+            },
+            "description": "Update your profile name and about"
+          }
+        },
+        {
+          "name": "1.5 Search User by Phone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('target_user_id', jsonData.id);",
+                  "    console.log('✅ Target user ID saved: ' + jsonData.id);",
+                  "    console.log('User: ' + jsonData.name + ' (' + jsonData.phone_number + ')');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
             }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/users/search?phone_number={{target_phone}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "users", "search"],
+              "query": [
+                {
+                  "key": "phone_number",
+                  "value": "{{target_phone}}"
+                }
+              ]
+            },
+            "description": "Search for a user by phone number and auto-save their user ID"
           }
         }
       ]
     },
     {
-      "name": "Conversations",
+      "name": "2. Conversations",
       "item": [
         {
-          "name": "Create Conversation",
+          "name": "2.1 Create Conversation with +8801608529761",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('conversation_id', jsonData.id);",
+                  "    console.log('✅ Conversation ID saved: ' + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -113,56 +260,73 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"participant_ids\": [\"{{other_user_id}}\"]\n}"
+              "raw": "{\n  \"participant_ids\": [\"{{target_user_id}}\"]\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/conversations",
               "host": ["{{base_url}}"],
               "path": ["api", "conversations"]
-            }
+            },
+            "description": "Create or get existing conversation. IMPORTANT: Run '1.5 Search User by Phone' first to set target_user_id!"
           }
         },
         {
-          "name": "List Conversations",
+          "name": "2.2 Get All Conversations",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "{{base_url}}/api/conversations?limit=50&offset=0",
+              "raw": "{{base_url}}/api/conversations?limit=20",
               "host": ["{{base_url}}"],
               "path": ["api", "conversations"],
               "query": [
                 {
                   "key": "limit",
-                  "value": "50"
-                },
-                {
-                  "key": "offset",
-                  "value": "0"
+                  "value": "20"
                 }
               ]
-            }
+            },
+            "description": "List all your conversations"
+          }
+        },
+        {
+          "name": "2.3 Get Conversation Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/{{conversation_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "{{conversation_id}}"]
+            },
+            "description": "Get details of a specific conversation"
           }
         }
       ]
     },
     {
-      "name": "Messages",
+      "name": "3. Messages",
       "item": [
         {
-          "name": "Send Text Message",
+          "name": "3.1 Send Message to +8801608529761",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('message_id', jsonData.id);",
+                  "    console.log('✅ Message sent! ID: ' + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -170,25 +334,21 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"conversation_id\": \"{{conversation_id}}\",\n  \"type\": \"TEXT\",\n  \"content\": \"Hello, World!\"\n}"
+              "raw": "{\n  \"type\": \"text\",\n  \"content\": \"Hello from Postman! 👋\\n\\nThis message was sent via WhatsApp Backend API.\\n\\nTimestamp: {{$timestamp}}\\n\\n✅ Backend Status: Working\\n✅ Message Delivery: Success\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/conversations/{{conversation_id}}/messages",
               "host": ["{{base_url}}"],
               "path": ["api", "conversations", "{{conversation_id}}", "messages"]
-            }
+            },
+            "description": "Send a text message to the conversation"
           }
         },
         {
-          "name": "Get Messages",
+          "name": "3.2 Get Messages in Conversation",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/api/conversations/{{conversation_id}}/messages?limit=50",
               "host": ["{{base_url}}"],
@@ -199,21 +359,52 @@
                   "value": "50"
                 }
               ]
-            }
+            },
+            "description": "Get all messages in the conversation"
           }
         },
         {
-          "name": "Search Messages",
+          "name": "3.3 Edit Message",
           "request": {
-            "method": "GET",
+            "method": "PUT",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"✏️ This message has been edited!\\n\\nEdited at: {{$timestamp}}\"\n}"
+            },
             "url": {
-              "raw": "{{base_url}}/api/conversations/messages/search?query=hello&limit=50",
+              "raw": "{{base_url}}/api/conversations/{{conversation_id}}/messages/{{message_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "{{conversation_id}}", "messages", "{{message_id}}"]
+            },
+            "description": "Edit an existing message"
+          }
+        },
+        {
+          "name": "3.4 Delete Message",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/messages/{{message_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "conversations", "messages", "{{message_id}}"]
+            },
+            "description": "Delete a message (soft delete)"
+          }
+        },
+        {
+          "name": "3.5 Search Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/conversations/messages/search?query=hello&limit=20",
               "host": ["{{base_url}}"],
               "path": ["api", "conversations", "messages", "search"],
               "query": [
@@ -223,118 +414,14 @@
                 },
                 {
                   "key": "limit",
-                  "value": "50"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Groups",
-      "item": [
-        {
-          "name": "Create Group",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"My Group\",\n  \"description\": \"A cool group chat\",\n  \"member_ids\": [\"{{user_id_1}}\", \"{{user_id_2}}\"]\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/groups",
-              "host": ["{{base_url}}"],
-              "path": ["api", "groups"]
-            }
-          }
-        },
-        {
-          "name": "Add Group Member",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"user_id\": \"{{new_member_id}}\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/groups/{{group_id}}/members",
-              "host": ["{{base_url}}"],
-              "path": ["api", "groups", "{{group_id}}", "members"]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Media",
-      "item": [
-        {
-          "name": "Upload Media",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": ""
+                  "value": "20"
                 }
               ]
             },
-            "url": {
-              "raw": "{{base_url}}/api/media",
-              "host": ["{{base_url}}"],
-              "path": ["api", "media"]
-            }
+            "description": "Search for messages by keyword"
           }
         }
       ]
-    }
-  ],
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:8000"
-    },
-    {
-      "key": "access_token",
-      "value": ""
-    },
-    {
-      "key": "conversation_id",
-      "value": ""
-    },
-    {
-      "key": "group_id",
-      "value": ""
     }
   ]
 }

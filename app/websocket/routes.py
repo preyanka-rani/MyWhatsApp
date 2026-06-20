@@ -1,7 +1,3 @@
-"""
-WebSocket API endpoints.
-"""
-
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid

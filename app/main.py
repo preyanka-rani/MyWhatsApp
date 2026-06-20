@@ -1,16 +1,15 @@
-"""
-Main FastAPI application module.
-"""
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import os
 
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import redis_manager
 from app.api import api_router
+from app.api.webhook import router as webhook_router
 from app.websocket import websocket_router
 from app.utils import setup_logging
 
@@ -69,11 +68,20 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins_list,
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Mount static files directory for media uploads
+uploads_dir = "uploads"
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+# Include webhook router at root level (WhatsApp requires /webhook, not /api/webhook)
+app.include_router(webhook_router)
 
 # Include API routers
 app.include_router(api_router, prefix="/api")

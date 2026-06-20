@@ -1,9 +1,6 @@
-"""
-Pydantic schemas for request/response validation.
-"""
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 import re
@@ -65,6 +62,14 @@ class UserUpdate(BaseModel):
     profile_picture_url: Optional[str] = None
 
 
+class LanguageUpdate(BaseModel):
+    """Schema for updating user's preferred language."""
+
+    language: str = Field(
+        ..., min_length=2, max_length=10, description="ISO language code"
+    )
+
+
 class UserResponse(BaseModel):
     """Response schema for user data."""
 
@@ -73,6 +78,7 @@ class UserResponse(BaseModel):
     name: str
     profile_picture_url: Optional[str]
     about: Optional[str]
+    preferred_language: Optional[str] = "en"
     is_online: bool
     last_seen: Optional[datetime]
     created_at: datetime
@@ -96,6 +102,17 @@ class MessageCreate(BaseModel):
     reply_to_id: Optional[UUID] = None
 
 
+class MessageCreateInConversation(BaseModel):
+    """Schema for creating a message within a conversation (conversation_id in URL)."""
+
+    type: str = Field(
+        ..., description="Message type: TEXT, IMAGE, VIDEO, AUDIO, DOCUMENT"
+    )
+    content: Optional[str] = None
+    media_id: Optional[UUID] = None
+    reply_to_id: Optional[UUID] = None
+
+
 class MessageResponse(BaseModel):
     """Response schema for message data."""
 
@@ -105,6 +122,7 @@ class MessageResponse(BaseModel):
     type: str
     content: Optional[str]
     media_id: Optional[UUID]
+    media: Optional[Dict[str, Any]] = None  # Nested media details
     reply_to_id: Optional[UUID]
     status: str
     is_deleted: bool
@@ -132,6 +150,7 @@ class ConversationCreate(BaseModel):
     participant_ids: List[UUID] = Field(
         ..., min_items=1, description="List of participant user IDs"
     )
+    name: Optional[str] = Field(None, description="Custom name for the conversation")
 
 
 class ConversationResponse(BaseModel):
@@ -139,6 +158,7 @@ class ConversationResponse(BaseModel):
 
     id: UUID
     type: str
+    name: Optional[str] = None  # Custom name for this conversation
     last_message_at: Optional[datetime]
     created_at: datetime
     participants: List[UserResponse] = []

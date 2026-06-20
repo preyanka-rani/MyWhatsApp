@@ -1,7 +1,3 @@
-"""
-OTP Service for handling phone-based authentication.
-"""
-
 from typing import Optional, Dict
 from datetime import datetime, timedelta
 from twilio.rest import Client
@@ -18,6 +14,7 @@ class OTPService:
     Service for OTP generation, verification, and delivery.
 
     Uses Twilio for SMS delivery and Redis for OTP storage.
+    Falls back to in-memory storage when Redis is unavailable.
     """
 
     OTP_EXPIRY_SECONDS = 300  # 5 minutes
@@ -33,6 +30,43 @@ class OTPService:
                 settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN
             )
         self.from_phone = settings.TWILIO_PHONE_NUMBER
+        # In-memory fallback storage when Redis is not available
+        self._memory_storage: Dict[str, Dict] = {}
+
+    async def _set_value(self, key: str, value: str, expiry: int):
+        """Set value in Redis or memory fallback."""
+        if redis_manager.redis_client:
+            await redis_manager.set_value(key, value, expiry)
+        else:
+            # Fallback to in-memory storage
+            self._memory_storage[key] = {
+                "value": value,
+                "expires_at": datetime.utcnow() + timedelta(seconds=expiry),
+            }
+
+    async def _get_value(self, key: str) -> Optional[str]:
+        """Get value from Redis or memory fallback."""
+        if redis_manager.redis_client:
+            return await redis_manager.get_value(key)
+        else:
+            # Fallback to in-memory storage
+            if key in self._memory_storage:
+                data = self._memory_storage[key]
+                if datetime.utcnow() < data["expires_at"]:
+                    return data["value"]
+                else:
+                    # Expired
+                    del self._memory_storage[key]
+            return None
+
+    async def _delete_value(self, key: str):
+        """Delete value from Redis or memory fallback."""
+        if redis_manager.redis_client:
+            await redis_manager.delete_value(key)
+        else:
+            # Fallback to in-memory storage
+            if key in self._memory_storage:
+                del self._memory_storage[key]
 
     async def request_otp(self, phone_number: str) -> Dict[str, any]:
         """
@@ -49,13 +83,11 @@ class OTPService:
 
         # Store OTP in Redis with expiry
         redis_key = f"{self.OTP_KEY_PREFIX}{phone_number}"
-        await redis_manager.set_value(
-            redis_key, otp_code, expiry=self.OTP_EXPIRY_SECONDS
-        )
+        await self._set_value(redis_key, otp_code, expiry=self.OTP_EXPIRY_SECONDS)
 
         # Reset attempts counter
         attempts_key = f"{self.MAX_ATTEMPTS_KEY_PREFIX}{phone_number}"
-        await redis_manager.set_value(attempts_key, "0", expiry=self.OTP_EXPIRY_SECONDS)
+        await self._set_value(attempts_key, "0", expiry=self.OTP_EXPIRY_SECONDS)
 
         # Send OTP via SMS
         if self.twilio_client:
@@ -106,7 +138,7 @@ class OTPService:
         """
         # Check attempts
         attempts_key = f"{self.MAX_ATTEMPTS_KEY_PREFIX}{phone_number}"
-        attempts_str = await redis_manager.get_value(attempts_key)
+        attempts_str = await self._get_value(attempts_key)
         attempts = int(attempts_str) if attempts_str else 0
 
         if attempts >= self.MAX_ATTEMPTS:
@@ -115,7 +147,7 @@ class OTPService:
 
         # Get stored OTP
         redis_key = f"{self.OTP_KEY_PREFIX}{phone_number}"
-        stored_otp = await redis_manager.get_value(redis_key)
+        stored_otp = await self._get_value(redis_key)
 
         if not stored_otp:
             logger.warning(
@@ -126,13 +158,13 @@ class OTPService:
         # Verify OTP
         if stored_otp == otp_code:
             # Clear OTP and attempts
-            await redis_manager.delete_value(redis_key)
-            await redis_manager.delete_value(attempts_key)
+            await self._delete_value(redis_key)
+            await self._delete_value(attempts_key)
             logger.info(f"OTP verified successfully for {phone_number}")
             return True
         else:
             # Increment attempts
-            await redis_manager.set_value(
+            await self._set_value(
                 attempts_key, str(attempts + 1), expiry=self.OTP_EXPIRY_SECONDS
             )
             logger.warning(f"Invalid OTP for {phone_number} (attempt {attempts + 1})")

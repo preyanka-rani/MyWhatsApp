@@ -1,7 +1,3 @@
-"""
-Message Service for handling message operations.
-"""
-
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc
@@ -71,6 +67,50 @@ class MessageService:
 
         # Send notification to conversation members
         await notification_service.notify_new_message(db, message)
+
+        # Also broadcast directly via WebSocket (for when Redis is not available)
+        try:
+            from app.websocket.manager import connection_manager
+
+            message_data = {
+                "id": str(message.id),
+                "conversation_id": str(conversation_id),
+                "sender_id": str(sender_id),
+                "content": content,
+                "type": message_type.value,
+                "status": MessageStatus.SENT.value,
+                "created_at": (
+                    message.created_at.isoformat() if message.created_at else None
+                ),
+            }
+
+            # Include media information if present
+            if media_id:
+                message_data["media_id"] = str(media_id)
+                # Load media details
+                from app.models import Media
+
+                media = await db.get(Media, media_id)
+                if media:
+                    message_data["media"] = {
+                        "id": str(media.id),
+                        "url": media.url,
+                        "thumbnail_url": media.thumbnail_url,
+                        "mime_type": media.mime_type,
+                        "filename": media.filename,
+                        "size": media.size,
+                    }
+
+            await connection_manager.broadcast_to_conversation(
+                str(conversation_id),
+                {
+                    "type": "new_message",
+                    "message": message_data,
+                },
+            )
+            logger.info(f"Message broadcasted via WebSocket: {message.id}")
+        except Exception as e:
+            logger.error(f"Failed to broadcast message via WebSocket: {e}")
 
         return message
 
@@ -198,21 +238,30 @@ class MessageService:
         Returns:
             True if successful, False otherwise
         """
+        logger.info(f"Attempting to delete message {message_id} by user {user_id}")
         message = await self.get_message(db, message_id)
 
-        if not message or message.sender_id != user_id:
-            logger.warning(f"Delete denied for message {message_id} by user {user_id}")
+        if not message:
+            logger.warning(f"Message {message_id} not found in database")
+            return False
+
+        logger.info(f"Message found. Sender: {message.sender_id}, Requester: {user_id}")
+
+        if message.sender_id != user_id:
+            logger.warning(
+                f"Delete denied for message {message_id}. User {user_id} is not the sender (sender is {message.sender_id})"
+            )
             return False
 
         if soft_delete:
             message.is_deleted = True
             message.content = None
             await db.commit()
-            logger.info(f"Message {message_id} soft deleted")
+            logger.info(f"Message {message_id} soft deleted successfully")
         else:
             await db.delete(message)
             await db.commit()
-            logger.info(f"Message {message_id} hard deleted")
+            logger.info(f"Message {message_id} hard deleted successfully")
 
         return True
 

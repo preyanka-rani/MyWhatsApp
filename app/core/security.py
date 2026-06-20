@@ -1,8 +1,3 @@
-"""
-Security utilities for authentication and authorization.
-Handles JWT tokens, password hashing, and OTP generation.
-"""
-
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
